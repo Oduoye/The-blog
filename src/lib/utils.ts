@@ -8,7 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 // Safe timer utilities to avoid WebContainer timer issues
 export const safeSetTimeout = (callback: () => void, delay: number): number => {
   try {
-    return setTimeout(callback, delay);
+    return window.setTimeout(callback, delay);
   } catch (error) {
     console.warn('Timer error, falling back to immediate execution:', error);
     // Fallback to immediate execution if timer fails
@@ -20,7 +20,7 @@ export const safeSetTimeout = (callback: () => void, delay: number): number => {
 export const safeClearTimeout = (timeoutId: number | undefined): void => {
   try {
     if (timeoutId) {
-      clearTimeout(timeoutId);
+      window.clearTimeout(timeoutId);
     }
   } catch (error) {
     console.warn('Clear timeout error:', error);
@@ -29,7 +29,7 @@ export const safeClearTimeout = (timeoutId: number | undefined): void => {
 
 export const safeSetInterval = (callback: () => void, delay: number): number => {
   try {
-    return setInterval(callback, delay);
+    return window.setInterval(callback, delay);
   } catch (error) {
     console.warn('Interval error, falling back to single execution:', error);
     // Fallback to single execution if interval fails
@@ -41,7 +41,7 @@ export const safeSetInterval = (callback: () => void, delay: number): number => 
 export const safeClearInterval = (intervalId: number | undefined): void => {
   try {
     if (intervalId) {
-      clearInterval(intervalId);
+      window.clearInterval(intervalId);
     }
   } catch (error) {
     console.warn('Clear interval error:', error);
