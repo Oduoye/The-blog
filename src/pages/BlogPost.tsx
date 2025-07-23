@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Play } from "lucide-react";
 import hljs from 'highlight.js';
+import { safeSetTimeout, safeClearTimeout, safeSetInterval, safeClearInterval } from "@/lib/utils";
 
 interface BlogPost {
   id: string;
@@ -165,7 +166,7 @@ const BlogPost = () => {
   useEffect(() => {
     if (post?.content) {
       // Highlight code blocks
-      setTimeout(() => {
+      safeSetTimeout(() => {
         hljs.highlightAll();
       }, 100);
 
@@ -218,7 +219,7 @@ const BlogPost = () => {
   useEffect(() => {
     if (!post) return;
 
-    const interval = setInterval(() => {
+    const interval = safeSetInterval(() => {
       const currentReadingTime = readingTimeTracker.getCurrentReadingTime();
       const scrollDepth = readingTimeTracker.getScrollDepth();
       
@@ -233,7 +234,7 @@ const BlogPost = () => {
       }
     }, 1000); // Check every second
 
-    return () => clearInterval(interval);
+    return () => safeClearInterval(interval);
   }, [post, trackPostEngagement]);
 
   const handleLike = async () => {

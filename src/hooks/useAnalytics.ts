@@ -5,6 +5,7 @@ import { visitorTracker } from '@/lib/visitorTracking';
 import { commentsStore } from '@/lib/commentsStore';
 import { safeJsonParse, safePropertyAccess } from '@/utils/safeEvalAlternatives';
 import type { Database } from '@/integrations/supabase/types';
+import { safeSetTimeout } from '@/lib/utils';
 
 type PostAnalytics = Database['public']['Tables']['post_analytics']['Row'];
 type PromotionAnalytics = Database['public']['Tables']['promotion_analytics']['Row'];
@@ -368,7 +369,7 @@ export const useAnalytics = () => {
       }
 
       // Refresh analytics to get updated real-time data
-      setTimeout(() => {
+      safeSetTimeout(() => {
         fetchPostAnalytics();
       }, 500);
 
@@ -484,7 +485,7 @@ export const useAnalytics = () => {
       });
 
       // Recalculate summaries immediately
-      setTimeout(() => {
+      safeSetTimeout(() => {
         calculateSummaries();
       }, 100);
 
@@ -521,7 +522,7 @@ export const useAnalytics = () => {
         (payload) => {
           console.log('📡 Realtime update for post analytics:', payload);
           // Refresh analytics when changes occur
-          setTimeout(() => {
+          safeSetTimeout(() => {
             fetchPostAnalytics();
           }, 1000);
         }
@@ -540,7 +541,7 @@ export const useAnalytics = () => {
         },
         (payload) => {
           console.log('📡 Realtime update for post likes:', payload);
-          setTimeout(() => {
+          safeSetTimeout(() => {
             fetchPostAnalytics();
           }, 500);
         }
@@ -558,7 +559,7 @@ export const useAnalytics = () => {
         },
         (payload) => {
           console.log('📡 Realtime update for post shares:', payload);
-          setTimeout(() => {
+          safeSetTimeout(() => {
             fetchPostAnalytics();
           }, 500);
         }
@@ -576,7 +577,7 @@ export const useAnalytics = () => {
         },
         (payload) => {
           console.log('📡 Realtime update for comments:', payload);
-          setTimeout(() => {
+          safeSetTimeout(() => {
             fetchPostAnalytics();
           }, 500);
         }
@@ -609,7 +610,7 @@ export const useAnalytics = () => {
           }
           
           // Recalculate summaries when promotion analytics change
-          setTimeout(() => {
+          safeSetTimeout(() => {
             calculateSummaries();
           }, 100);
         }

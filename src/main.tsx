@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 import hljs from 'highlight.js'
+import { safeSetTimeout } from './lib/utils'
 
 // Initialize highlight.js
 hljs.configure({
@@ -13,7 +14,7 @@ root.render(<App />);
 
 // Highlight code blocks after initial render
 if (typeof window !== 'undefined') {
-  setTimeout(() => {
+  safeSetTimeout(() => {
     hljs.highlightAll();
   }, 100);
 }

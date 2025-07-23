@@ -5,6 +5,7 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { PerformanceLogger } from "@/utils/performanceLogger";
+import { safeSetTimeout, safeClearTimeout, safeSetInterval, safeClearInterval } from "@/lib/utils";
 
 interface EnhancedPromotionalPopupProps {
   currentPage?: string;
@@ -202,7 +203,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
     setIsTransitioning(true);
     
     // Wait for fade out
-    setTimeout(async () => {
+    safeSetTimeout(async () => {
       setCurrentPromotionIndex(nextIndex);
       
       // Track view for the new promotion
@@ -220,7 +221,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
       }
       
       // End transition animation
-      setTimeout(() => {
+      safeSetTimeout(() => {
         setIsTransitioning(false);
       }, 50); // Small delay to ensure content is updated
       
@@ -232,7 +233,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
     if (promotions.length <= 1 || !isVisible || rotationPaused) {
       // Clear rotation timer if not needed
       if (rotationTimerRef.current) {
-        clearInterval(rotationTimerRef.current);
+        safeClearInterval(rotationTimerRef.current);
         rotationTimerRef.current = null;
       }
       return;
@@ -241,7 +242,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
     console.log(`🔄 Starting rotation for ${promotions.length} promotions`);
     
     // Set up rotation timer
-    rotationTimerRef.current = setInterval(() => {
+    rotationTimerRef.current = safeSetInterval(() => {
       if (!rotationPaused && isVisible) {
         rotateToNext();
       }
@@ -249,7 +250,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
 
     return () => {
       if (rotationTimerRef.current) {
-        clearInterval(rotationTimerRef.current);
+        safeClearInterval(rotationTimerRef.current);
         rotationTimerRef.current = null;
       }
     };
@@ -261,7 +262,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
       console.log('⏰ Setting up promotion display triggers...');
       
       // Show after initial delay
-      displayTimerRef.current = setTimeout(() => {
+      displayTimerRef.current = safeSetTimeout(() => {
         if (!hasInteracted) {
           console.log('⏰ Timer triggered - showing promotions');
           showPromotions();
@@ -275,7 +276,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
           setHasInteracted(true);
           showPromotions();
           if (displayTimerRef.current) {
-            clearTimeout(displayTimerRef.current);
+            safeClearTimeout(displayTimerRef.current);
             displayTimerRef.current = null;
           }
         }
@@ -285,7 +286,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
 
       return () => {
         if (displayTimerRef.current) {
-          clearTimeout(displayTimerRef.current);
+          safeClearTimeout(displayTimerRef.current);
           displayTimerRef.current = null;
         }
         window.removeEventListener('scroll', handleScroll);
@@ -307,7 +308,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
     }
     
     // Auto-hide after calculated display duration
-    scrollTimerRef.current = setTimeout(() => {
+    scrollTimerRef.current = safeSetTimeout(() => {
       hidePromotions();
     }, displayDuration);
   };
@@ -330,7 +331,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
     
     // Clear all timers
     if (scrollTimerRef.current) {
-      clearTimeout(scrollTimerRef.current);
+      safeClearTimeout(scrollTimerRef.current);
       scrollTimerRef.current = null;
     }
 
@@ -341,7 +342,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
   const setupAutoRefresh = () => {
     console.log('🔄 Setting up auto-refresh timer...');
     
-    refreshTimerRef.current = setTimeout(() => {
+    refreshTimerRef.current = safeSetTimeout(() => {
       console.log('🔄 Auto-refreshing promotions...');
       
       // Reset interaction state to allow showing again
@@ -356,7 +357,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
   useEffect(() => {
     return () => {
       if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current);
+        safeClearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
     };
@@ -432,7 +433,7 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
     setIsTransitioning(true);
     
     // Wait for fade out
-    setTimeout(async () => {
+    safeSetTimeout(async () => {
       setCurrentPromotionIndex(newIndex);
       
       // Track view for manually navigated promotion
@@ -450,14 +451,14 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
       }
       
       // End transition animation
-      setTimeout(() => {
+      safeSetTimeout(() => {
         setIsTransitioning(false);
       }, 50);
       
     }, TRANSITION_DURATION / 2);
     
     // Resume rotation after a delay
-    setTimeout(() => {
+    safeSetTimeout(() => {
       setRotationPaused(false);
     }, ROTATION_INTERVAL);
   };
