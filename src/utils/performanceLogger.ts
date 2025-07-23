@@ -55,35 +55,6 @@ export class PerformanceLogger {
   }
 }
 
-// Debounce utility for preventing excessive function calls
-export function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  delay: number
-): (...args: Parameters<T>) => void {
-  let timeoutId: NodeJS.Timeout;
-  
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
-    timeoutId = setTimeout(() => func(...args), delay);
-  };
-}
-
-// Throttle utility for limiting function call frequency
-export function throttle<T extends (...args: any[]) => any>(
-  func: T,
-  limit: number
-): (...args: Parameters<T>) => void {
-  let inThrottle: boolean;
-  
-  return (...args: Parameters<T>) => {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
-    }
-  };
-}
-
 // Cache utility for client-side data caching
 export class ClientCache {
   private static cache: Map<string, { data: any; timestamp: number; ttl: number }> = new Map();

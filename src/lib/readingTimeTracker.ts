@@ -1,4 +1,6 @@
 // Reading time and session tracking utilities
+import { safeSetTimeout, safeClearTimeout } from '@/lib/utils';
+
 export interface ReadingSession {
   postId: string;
   startTime: number;
@@ -138,14 +140,14 @@ class ReadingTimeTracker {
 
   private resetInactivityTimer(): void {
     this.clearInactivityTimer();
-    this.inactivityTimer = setTimeout(() => {
+    this.inactivityTimer = safeSetTimeout(() => {
       this.isVisible = false;
     }, this.INACTIVITY_THRESHOLD);
   }
 
   private clearInactivityTimer(): void {
     if (this.inactivityTimer) {
-      clearTimeout(this.inactivityTimer);
+      safeClearTimeout(this.inactivityTimer);
       this.inactivityTimer = null;
     }
   }

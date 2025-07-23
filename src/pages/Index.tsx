@@ -7,7 +7,8 @@ import ContactForm from "@/components/ContactForm";
 import BlogFooter from "@/components/BlogFooter";
 import EnhancedPromotionalPopup from "@/components/EnhancedPromotionalPopup";
 import { useBlogPosts } from "@/hooks/useBlogPosts";
-import { PerformanceLogger, ClientCache, debounce } from "@/utils/performanceLogger";
+import { PerformanceLogger, ClientCache } from "@/utils/performanceLogger";
+import { debounce, safeSetTimeout } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -77,11 +78,11 @@ const Index = () => {
     
     if (!loading && posts.length > 0) {
       // Small delay to ensure DOM is ready, especially on mobile
-      const timer = setTimeout(() => {
+      const timer = safeSetTimeout(() => {
         setIsInitialLoad(false);
         PerformanceLogger.endTimer('initial-load');
       }, 100);
-      return () => clearTimeout(timer);
+      return () => safeClearTimeout(timer);
     }
   }, [loading, posts.length]);
 

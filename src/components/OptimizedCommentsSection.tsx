@@ -8,7 +8,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useOptimizedComments } from "@/hooks/useOptimizedComments";
 import { useAnalytics } from "@/hooks/useAnalytics";
-import { PerformanceLogger, debounce } from "@/utils/performanceLogger";
+import { PerformanceLogger } from "@/utils/performanceLogger";
+import { debounce } from "@/lib/utils";
 import { User, Heart, Share, MessageSquare, Loader2, AlertCircle, RefreshCw, Edit, Trash2, Save, X } from "lucide-react";
 
 interface OptimizedCommentsSectionProps {
