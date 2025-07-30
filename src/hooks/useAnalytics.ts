@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { visitorTracker } from '@/lib/visitorTracking';
 import { commentsStore } from '@/lib/commentsStore';
 import { safeJsonParse, safePropertyAccess } from '@/utils/safeEvalAlternatives';
+import { safeSetTimeout, safeClearTimeout } from '@/lib/utils'; // New: Import safe timers
 import type { Database } from '@/integrations/supabase/types';
 
 type PostAnalytics = Database['public']['Tables']['post_analytics']['Row'];
@@ -51,105 +52,38 @@ export const useAnalytics = () => {
 
   const fetchPostAnalytics = async () => {
     try {
-      console.log('📊 Fetching enhanced post analytics with real-time engagement...');
+      console.log('📊 Fetching enhanced post analytics using RPC...');
       
-      // First, get all published blog posts
-      const { data: blogPosts, error: postsError } = await supabase
-        .from('blog_posts')
-        .select('id, title, slug, is_published')
-        .eq('is_published', true)
-        .order('created_at', { ascending: false });
-
-      if (postsError) {
-        throw postsError;
-      }
-
-      console.log('📋 Found published posts:', blogPosts?.length || 0);
-
-      // Get existing analytics data
-      const { data, error } = await supabase
-        .from('post_analytics')
-        .select(`
-          *,
-          blog_posts (
-            title,
-            slug
-          )
-        `)
-        .order('created_at', { ascending: false });
+      // New: Call the new RPC function to get all aggregated analytics data efficiently
+      const { data, error } = await supabase.rpc('get_enhanced_post_analytics');
 
       if (error) {
         throw error;
       }
 
-      console.log('📊 Raw analytics data:', data?.length || 0);
-
-      // Create enhanced analytics with real-time engagement data
-      const enhancedAnalytics: EnhancedPostAnalytics[] = [];
-
-      if (blogPosts) {
-        for (const post of blogPosts) {
-          // Find existing analytics for this post
-          const existingAnalytics = data?.find(a => a.post_id === post.id);
-          
-          // Get real-time engagement counts from database
-          const [likesResult, sharesResult, commentsResult] = await Promise.all([
-            supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('post_shares').select('*', { count: 'exact', head: true }).eq('post_id', post.id),
-            supabase.from('comments').select('*', { count: 'exact', head: true }).eq('post_id', post.id).eq('is_approved', true)
-          ]);
-
-          const realTimeLikes = likesResult.count || 0;
-          const realTimeShares = sharesResult.count || 0;
-          const realTimeComments = commentsResult.count || 0;
-
-          // Create or update analytics entry
-          const analyticsEntry: EnhancedPostAnalytics = {
-            id: existingAnalytics?.id || `temp-${post.id}`,
-            post_id: post.id,
-            views: existingAnalytics?.views || 0,
-            unique_views: existingAnalytics?.unique_views || 0,
-            likes: realTimeLikes, // Use real-time data
-            shares: realTimeShares, // Use real-time data
-            comments_count: realTimeComments, // Use real-time data
-            reading_time_avg: existingAnalytics?.reading_time_avg || 0,
-            bounce_rate: existingAnalytics?.bounce_rate || 0,
-            engagement_rate: existingAnalytics?.engagement_rate || 0,
-            last_viewed: existingAnalytics?.last_viewed || new Date().toISOString(),
-            created_at: existingAnalytics?.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-            blog_posts: {
-              title: post.title,
-              slug: post.slug
-            },
-            real_time_likes: realTimeLikes,
-            real_time_shares: realTimeShares,
-            real_time_comments: realTimeComments
-          };
-
-          // Recalculate engagement rate with real-time data
-          const totalEngagements = realTimeLikes + realTimeShares + realTimeComments;
-          const totalViews = analyticsEntry.views || 1;
-          analyticsEntry.engagement_rate = (totalEngagements / totalViews) * 100;
-
-          enhancedAnalytics.push(analyticsEntry);
+      console.log('📊 Enhanced analytics data fetched via RPC:', data?.length || 0);
+      
+      // The RPC function already returns the data in the desired EnhancedPostAnalytics format
+      // You may need to cast bigint values to number if your frontend components expect numbers.
+      const processedData: EnhancedPostAnalytics[] = (data || []).map((item: any) => ({
+        ...item,
+        // Ensure that types match your TypeScript definition for EnhancedPostAnalytics
+        // The RPC returns bigint for counts; cast to number if frontend logic requires it.
+        likes: Number(item.likes),
+        shares: Number(item.shares),
+        comments_count: Number(item.comments_count),
+        real_time_likes: Number(item.real_time_likes),
+        real_time_shares: Number(item.real_time_shares),
+        real_time_comments: Number(item.real_time_comments),
+        blog_posts: {
+          title: item.title,
+          slug: item.slug
         }
-      }
+      }));
 
-      // Remove duplicates by post_id, keeping the most recent
-      const uniqueAnalytics = enhancedAnalytics.reduce((acc: EnhancedPostAnalytics[], current) => {
-        const existing = acc.find(item => item.post_id === current.post_id);
-        if (!existing) {
-          acc.push(current);
-        }
-        return acc;
-      }, []);
-
-      console.log('✅ Enhanced analytics prepared:', uniqueAnalytics.length);
-
-      setPostAnalytics(uniqueAnalytics);
+      setPostAnalytics(processedData);
     } catch (error: any) {
-      console.error('❌ Error fetching enhanced post analytics:', error);
+      console.error('❌ Error fetching enhanced post analytics via RPC:', error);
       toast({
         title: "Analytics Error",
         description: "Failed to load post analytics. Please try refreshing.",
@@ -201,6 +135,7 @@ export const useAnalytics = () => {
       total_posts: postAnalytics.length,
       total_views: postAnalytics.reduce((sum, p) => sum + (p.views || 0), 0),
       total_unique_views: postAnalytics.reduce((sum, p) => sum + (p.unique_views || 0), 0),
+      // Use real_time_likes/shares/comments for summary if available, falling back to stored counts
       total_likes: postAnalytics.reduce((sum, p) => sum + (p.real_time_likes || p.likes || 0), 0),
       total_shares: postAnalytics.reduce((sum, p) => sum + (p.real_time_shares || p.shares || 0), 0),
       total_comments: postAnalytics.reduce((sum, p) => sum + (p.real_time_comments || p.comments_count || 0), 0),
@@ -248,7 +183,7 @@ export const useAnalytics = () => {
       const visitorId = visitorTracker.getVisitorId();
       const fingerprint = visitorTracker.getVisitorFingerprint();
 
-      // Get real-time counts from database
+      // Get real-time counts from database (these are used to update the analytics record accurately)
       const [likesResult, sharesResult, commentsResult] = await Promise.all([
         supabase.from('post_likes').select('*', { count: 'exact', head: true }).eq('post_id', postId),
         supabase.from('post_shares').select('*', { count: 'exact', head: true }).eq('post_id', postId),
@@ -367,8 +302,8 @@ export const useAnalytics = () => {
         console.log('✅ Updated analytics for post:', postId, updates);
       }
 
-      // Refresh analytics to get updated real-time data
-      setTimeout(() => {
+      // New: Use safeSetTimeout for refreshing analytics data
+      safeSetTimeout(() => {
         fetchPostAnalytics();
       }, 500);
 
@@ -483,8 +418,8 @@ export const useAnalytics = () => {
         return [analytics!, ...filtered];
       });
 
-      // Recalculate summaries immediately
-      setTimeout(() => {
+      // New: Use safeSetTimeout for recalculating summaries
+      safeSetTimeout(() => {
         calculateSummaries();
       }, 100);
 
@@ -521,7 +456,7 @@ export const useAnalytics = () => {
         (payload) => {
           console.log('📡 Realtime update for post analytics:', payload);
           // Refresh analytics when changes occur
-          setTimeout(() => {
+          safeSetTimeout(() => { // New: Use safeSetTimeout
             fetchPostAnalytics();
           }, 1000);
         }
@@ -540,7 +475,7 @@ export const useAnalytics = () => {
         },
         (payload) => {
           console.log('📡 Realtime update for post likes:', payload);
-          setTimeout(() => {
+          safeSetTimeout(() => { // New: Use safeSetTimeout
             fetchPostAnalytics();
           }, 500);
         }
@@ -558,7 +493,7 @@ export const useAnalytics = () => {
         },
         (payload) => {
           console.log('📡 Realtime update for post shares:', payload);
-          setTimeout(() => {
+          safeSetTimeout(() => { // New: Use safeSetTimeout
             fetchPostAnalytics();
           }, 500);
         }
@@ -576,7 +511,7 @@ export const useAnalytics = () => {
         },
         (payload) => {
           console.log('📡 Realtime update for comments:', payload);
-          setTimeout(() => {
+          safeSetTimeout(() => { // New: Use safeSetTimeout
             fetchPostAnalytics();
           }, 500);
         }
@@ -609,7 +544,7 @@ export const useAnalytics = () => {
           }
           
           // Recalculate summaries when promotion analytics change
-          setTimeout(() => {
+          safeSetTimeout(() => { // New: Use safeSetTimeout
             calculateSummaries();
           }, 100);
         }
@@ -617,6 +552,7 @@ export const useAnalytics = () => {
       .subscribe();
 
     return () => {
+      // Cleanup for all channels
       supabase.removeChannel(postAnalyticsChannel);
       supabase.removeChannel(likesChannel);
       supabase.removeChannel(sharesChannel);
