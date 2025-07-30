@@ -14,7 +14,9 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Upload, Image, Star, Eye, EyeOff } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import DOMPurify from 'dompurify'; // New: Import DOMPurify for XSS sanitization
 
+// Your existing categories array is preserved here
 const categories = [
   "Technology",
   "Crypto",
@@ -176,7 +178,8 @@ const EditPost = () => {
 
       const updates = {
         title: formData.title,
-        content: formData.content,
+        // New: Sanitize content before saving
+        content: DOMPurify.sanitize(formData.content), 
         excerpt: formData.excerpt || formData.content.substring(0, 200) + "...",
         category: formData.category || "General",
         tags: formData.tags.split(",").map(tag => tag.trim()).filter(Boolean),
@@ -186,7 +189,11 @@ const EditPost = () => {
         social_handles: Object.fromEntries(
           Object.entries(formData.social_handles).filter(([_, value]) => value.trim() !== "")
         ),
-        media_items: mediaItems,
+        // New: Sanitize paragraphText in media items before saving
+        media_items: mediaItems.map(item => ({
+          ...item,
+          paragraphText: item.paragraphText ? DOMPurify.sanitize(item.paragraphText) : item.paragraphText
+        })),
         updated_at: new Date().toISOString(),
         // Update published_at when publishing
         published_at: formData.is_published ? new Date().toISOString() : null
@@ -306,7 +313,8 @@ const EditPost = () => {
           {item.paragraphText && (
             <div 
               className="mt-4 prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: item.paragraphText }}
+              // New: Sanitize paragraph text before rendering
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.paragraphText) }} 
             />
           )}
         </div>
@@ -329,7 +337,8 @@ const EditPost = () => {
           {item.paragraphText && (
             <div 
               className="mt-4 prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: item.paragraphText }}
+              // New: Sanitize paragraph text before rendering
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.paragraphText) }} 
             />
           )}
         </div>
@@ -667,7 +676,8 @@ const EditPost = () => {
                     {formData.content ? (
                       <div 
                         className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600"
-                        dangerouslySetInnerHTML={{ __html: formData.content }}
+                        // New: Sanitize content before rendering
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(formData.content) }} 
                       />
                     ) : (
                       <p className="text-gray-500 italic">Start writing your content to see the preview...</p>
