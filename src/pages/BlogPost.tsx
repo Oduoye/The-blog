@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react"; // Added useRef
 import { useParams, Link } from "react-router-dom";
 import BlogHeader from "@/components/BlogHeader";
 import OptimizedCommentsSection from "@/components/OptimizedCommentsSection";
@@ -15,6 +15,8 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Play } from "lucide-react";
 import hljs from 'highlight.js';
+import DOMPurify from 'dompurify'; // New: Import DOMPurify for XSS sanitization
+import { safeSetTimeout, safeClearTimeout, safeSetInterval, safeClearInterval } from '@/lib/utils'; // New: Import safe timers
 
 interface BlogPost {
   id: string;
@@ -51,6 +53,11 @@ const BlogPost = () => {
     url: '',
     title: ''
   });
+
+  // New: Refs for managing timers to ensure proper cleanup and safe execution
+  const highlightTimerRef = useRef<number | null>(null);
+  const copyFunctionTimerRef = useRef<number | null>(null);
+  const readingProgressIntervalRef = useRef<number | null>(null);
 
   useEffect(() => {
     const fetchPost = async () => {
@@ -164,13 +171,17 @@ const BlogPost = () => {
   // Initialize code highlighting and copy functionality
   useEffect(() => {
     if (post?.content) {
+      // Clear any previous timers before setting new ones
+      safeClearTimeout(highlightTimerRef.current);
+      safeClearTimeout(copyFunctionTimerRef.current);
+
       // Highlight code blocks
-      setTimeout(() => {
+      highlightTimerRef.current = safeSetTimeout(() => {
         hljs.highlightAll();
       }, 100);
 
       // Add copy functionality to code blocks
-      const addCopyFunctionality = () => {
+      copyFunctionTimerRef.current = safeSetTimeout(() => {
         // Define the copy function globally so it can be called from onclick handlers
         (window as any).copyCodeToClipboard = async (button: HTMLButtonElement) => {
           try {
@@ -189,7 +200,7 @@ const BlogPost = () => {
               `;
               button.classList.add('copied');
               
-              setTimeout(() => {
+              setTimeout(() => { // Using plain setTimeout here is acceptable for UI feedback
                 button.innerHTML = originalContent;
                 button.classList.remove('copied');
               }, 2000);
@@ -208,17 +219,21 @@ const BlogPost = () => {
             });
           }
         };
-      };
-
-      addCopyFunctionality();
+      }, 100); // Small delay to ensure DOM is ready
     }
+    return () => {
+      safeClearTimeout(highlightTimerRef.current);
+      safeClearTimeout(copyFunctionTimerRef.current);
+    };
   }, [post?.content, toast]);
 
   // Track reading progress periodically
   useEffect(() => {
     if (!post) return;
 
-    const interval = setInterval(() => {
+    safeClearInterval(readingProgressIntervalRef.current); // Clear previous interval
+
+    readingProgressIntervalRef.current = safeSetInterval(() => { // Use safeSetInterval
       const currentReadingTime = readingTimeTracker.getCurrentReadingTime();
       const scrollDepth = readingTimeTracker.getScrollDepth();
       
@@ -233,7 +248,7 @@ const BlogPost = () => {
       }
     }, 1000); // Check every second
 
-    return () => clearInterval(interval);
+    return () => safeClearInterval(readingProgressIntervalRef.current); // Clear on unmount
   }, [post, trackPostEngagement]);
 
   const handleLike = async () => {
@@ -273,7 +288,7 @@ const BlogPost = () => {
         <BlogHeader />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading post...</p>
+          <p className="mt-4 text-gray-600">Loading post...</p>
           {navigationLoading && (
             <p className="mt-2 text-sm text-gray-500">This may take a moment on slower connections.</p>
           )}
@@ -326,7 +341,8 @@ const BlogPost = () => {
           {item.paragraphText && (
             <div 
               className="mt-4 prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: item.paragraphText }}
+              // New: Sanitize paragraph text before rendering
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.paragraphText) }}
             />
           )}
         </div>
@@ -358,7 +374,8 @@ const BlogPost = () => {
           {item.paragraphText && (
             <div 
               className="mt-4 prose prose-sm max-w-none text-gray-700"
-              dangerouslySetInnerHTML={{ __html: item.paragraphText }}
+              // New: Sanitize paragraph text before rendering
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(item.paragraphText) }}
             />
           )}
         </div>
@@ -471,7 +488,8 @@ const BlogPost = () => {
           {post.content ? (
             <div 
               className="prose prose-sm sm:prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-strong:text-gray-900 prose-h1:text-2xl prose-h1:font-bold prose-h1:mt-8 prose-h1:mb-4 prose-h2:text-xl prose-h2:font-bold prose-h2:mt-6 prose-h2:mb-3 prose-h3:text-lg prose-h3:font-bold prose-h3:mt-4 prose-h3:mb-2 prose-table:w-full prose-table:border-collapse prose-table:my-6 prose-th:border prose-th:border-gray-300 prose-th:px-4 prose-th:py-2 prose-th:bg-gray-100 prose-th:font-semibold prose-th:text-left prose-td:border prose-td:border-gray-300 prose-td:px-4 prose-td:py-2"
-              dangerouslySetInnerHTML={{ __html: post.content }}
+              // New: Sanitize content before rendering
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(post.content) }}
             />
           ) : (
             <p className="text-gray-600">No content available for this post.</p>
