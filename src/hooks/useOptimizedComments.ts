@@ -35,6 +35,28 @@ export const useOptimizedComments = (postId: string) => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const visitorId = visitorTracker.getVisitorId();
   const GLOBAL_COMMENTER_NAME_KEY = 'nf_global_commenter_name';
+  // New: Key for storing comment ownership locally
+  const LOCAL_COMMENT_OWNERSHIP_KEY = 'nf_local_comment_ownership'; 
+
+  // New: Helper to get local comment ownership map
+  const getLocalCommentOwnership = (): Record<string, string> => {
+    try {
+      const stored = localStorage.getItem(LOCAL_COMMENT_OWNERSHIP_KEY);
+      return stored ? JSON.parse(stored) : {};
+    } catch (e) {
+      console.error('Error parsing local comment ownership:', e);
+      return {};
+    }
+  };
+
+  // New: Helper to save local comment ownership map
+  const saveLocalCommentOwnership = (map: Record<string, string>) => {
+    try {
+      localStorage.setItem(LOCAL_COMMENT_OWNERSHIP_KEY, JSON.stringify(map));
+    } catch (e) {
+      console.error('Error saving local comment ownership:', e);
+    }
+  };
 
   // Optimized data loading with caching and error handling
   const loadEngagement = useCallback(async (useCache = true) => {
@@ -271,11 +293,12 @@ export const useOptimizedComments = (postId: string) => {
       PerformanceLogger.startTimer(`addComment-${postId}`);
       
       const finalAuthorName = engagement.globalCommentName || authorName;
+      const finalAuthorEmail = authorEmail || null; // Ensure email is null if not provided
 
       const commentData: CommentInsert = {
         post_id: postId,
         author_name: finalAuthorName,
-        author_email: authorEmail,
+        author_email: finalAuthorEmail, // New: Pass the email to the database
         content: content.trim(),
         is_approved: true
       };
@@ -290,6 +313,12 @@ export const useOptimizedComments = (postId: string) => {
 
       // Store the author name globally
       localStorage.setItem(GLOBAL_COMMENTER_NAME_KEY, finalAuthorName);
+      
+      // New: Store ownership of this specific comment locally using a unique identifier
+      const currentOwnership = getLocalCommentOwnership();
+      // Use a combination of email and name for better identification if email is provided, else just name
+      currentOwnership[data.id] = finalAuthorEmail ? `${finalAuthorEmail}|${finalAuthorName}` : finalAuthorName;
+      saveLocalCommentOwnership(currentOwnership);
 
       // Optimistic update
       setEngagement(prev => ({
@@ -389,6 +418,11 @@ export const useOptimizedComments = (postId: string) => {
         comments: prev.comments.filter(comment => comment.id !== commentId)
       }));
 
+      // New: Remove ownership from local storage
+      const currentOwnership = getLocalCommentOwnership();
+      delete currentOwnership[commentId];
+      saveLocalCommentOwnership(currentOwnership);
+
       // Clear cache to force refresh on next load
       ClientCache.delete(`engagement-${postId}`);
 
@@ -411,31 +445,36 @@ export const useOptimizedComments = (postId: string) => {
     }
   }, [postId, toast]);
 
-  // Check if user can edit a comment (based on email or stored commenter name)
+  // New: Check if user can edit a comment (based on stored commenter name or locally stored ownership)
   const canEditComment = useCallback((comment: Comment) => {
     const globalCommentName = localStorage.getItem(GLOBAL_COMMENTER_NAME_KEY);
-    const storedEmail = localStorage.getItem(`comment_author_email_${comment.id}`);
+    const localOwnership = getLocalCommentOwnership();
+
+    // Check if the current user is the author of this specific comment based on local ownership
+    // This handles cases where user might clear global name but still has local ownership record
+    const isLocalAuthor = localOwnership[comment.id] === comment.author_email ||
+                          localOwnership[comment.id] === comment.author_name ||
+                          localOwnership[comment.id] === `${comment.author_email}|${comment.author_name}`;
+
+    // Also allow editing if the comment author name matches the globally stored name
+    const matchesGlobalName = globalCommentName && comment.author_name === globalCommentName;
     
-    // User can edit if:
-    // 1. They have the same global commenter name
-    // 2. They have the same email stored locally
-    // 3. The comment author name matches their current global name
-    return (
-      (globalCommentName && comment.author_name === globalCommentName) ||
-      (storedEmail && comment.author_email === storedEmail) ||
-      (engagement.globalCommentName && comment.author_name === engagement.globalCommentName)
-    );
-  }, [engagement.globalCommentName]);
+    // An authenticated user (admin or author_id owner) can also edit if you introduce checks here
+    // For now, based on anonymous commenting:
+    return isLocalAuthor || matchesGlobalName;
+  }, []);
+
   // Clear global commenter name
   const clearGlobalCommentName = useCallback(() => {
     localStorage.removeItem(GLOBAL_COMMENTER_NAME_KEY);
+    localStorage.removeItem(LOCAL_COMMENT_OWNERSHIP_KEY); // New: Also clear comment ownership map
     setEngagement(prev => ({
       ...prev,
       globalCommentName: undefined
     }));
     toast({
       title: "Name Cleared",
-      description: "Your commenter name has been reset.",
+      description: "Your commenter name and local comment ownership have been reset.",
     });
   }, [toast]);
 
