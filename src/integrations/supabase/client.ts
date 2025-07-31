@@ -14,11 +14,15 @@ console.log('Supabase client configuration:', {
   anonKeyLength: supabaseAnonKey?.length
 });
 
+// Updated: Explicitly set the schema to 'blog' for default interactions
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: true
+  },
+  db: { // New: Database options
+    schema: 'blog', // New: Set default schema to 'blog'
   },
   global: {
     headers: {
