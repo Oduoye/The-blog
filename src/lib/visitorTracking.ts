@@ -1,5 +1,5 @@
 // Visitor tracking utilities using cookies and localStorage
-import { safeJsonParse, safePropertyAccess } from '@/utils/safeEvalAlternatives';
+import { safeJsonParse } from '@/utils/safeEvalAlternatives'; // safeJsonParse is already updated
 
 export interface VisitorSession {
   id: string;
@@ -142,7 +142,7 @@ class VisitorTracker {
   public clearSession(): void {
     try {
       localStorage.removeItem(this.SESSION_KEY);
-      // Also clear reading time tracker data
+      // Also clear reading time tracker data (if it uses sessionStorage, it needs to be updated)
       sessionStorage.removeItem('reading_session');
       this.createNewSession();
     } catch (error) {
