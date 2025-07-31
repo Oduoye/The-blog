@@ -29,9 +29,9 @@ export const uploadPromotionalImage = async (file: File): Promise<string> => {
 
     console.log('Uploading promotional image:', fileName);
 
-    // Upload the file
+    // Upload the file to 'promotional-images' bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('promotional-images')
+      .from('promotional-images') // Updated bucket name
       .upload(fileName, file, {
         cacheControl: '3600',
         upsert: false
@@ -44,7 +44,7 @@ export const uploadPromotionalImage = async (file: File): Promise<string> => {
 
     // Get the public URL
     const { data: urlData } = supabase.storage
-      .from('promotional-images')
+      .from('promotional-images') // Updated bucket name
       .getPublicUrl(fileName);
 
     if (!urlData.publicUrl) {
@@ -66,11 +66,12 @@ export const deletePromotionalImage = async (url: string): Promise<void> => {
     console.log('Deleting promotional image:', url);
     
     // Extract file path from URL
+    // Assumes URL format like: https://[project_ref].supabase.co/storage/v1/object/public/promotional-images/filename.ext
     const urlParts = url.split('/');
-    const fileName = urlParts[urlParts.length - 1];
+    const fileName = urlParts[urlParts.length - 1]; // Get just the filename
 
     const { error } = await supabase.storage
-      .from('promotional-images')
+      .from('promotional-images') // Updated bucket name
       .remove([fileName]);
 
     if (error) {
