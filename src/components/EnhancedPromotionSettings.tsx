@@ -8,15 +8,17 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { usePromotions } from "@/hooks/usePromotions";
+import { usePromotions } from "@/hooks/usePromotions"; // usePromotions is updated
 import { useToast } from "@/hooks/use-toast";
-import { uploadPromotionalImage, deletePromotionalImage } from "@/lib/promotionalImageUpload";
+import { uploadPromotionalImage, deletePromotionalImage } from "@/lib/promotionalImageUpload"; // Needs update
 import { Plus, Edit, Trash2, Eye, BarChart3, Calendar, Target, Settings, Upload, Image, X } from "lucide-react";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/types"; // New: Import Database type
 
-type Promotion = Database['public']['Tables']['promotions']['Row'];
+// Define Promotion type from new schema
+type Promotion = Database['blog']['Tables']['promotions']['Row'];
 
 const EnhancedPromotionSettings = () => {
+  // usePromotions hook is already updated to new schema
   const { promotions, loading, createPromotion, updatePromotion, deletePromotion } = usePromotions();
   const { toast } = useToast();
   const [isCreating, setIsCreating] = useState(false);
@@ -68,7 +70,7 @@ const EnhancedPromotionSettings = () => {
     setIsCreating(false);
   };
 
-  const handleEdit = (promotion: Promotion) => {
+  const handleEdit = (promotion: Promotion) => { // Use Promotion type
     const rules = promotion.display_rules as any || {};
     setFormData({
       title: promotion.title,
@@ -193,7 +195,9 @@ const EnhancedPromotionSettings = () => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    // New: Use modified_at if available, otherwise created_at
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric'
@@ -250,7 +254,8 @@ const EnhancedPromotionSettings = () => {
               ) : (
                 <div className="space-y-4">
                   {promotions.map((promotion) => (
-                    <div key={promotion.id} className="border rounded-lg p-4 space-y-3">
+                    // Key is now 'id' for promotions table
+                    <div key={promotion.id} className="border rounded-lg p-4 space-y-3"> 
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
