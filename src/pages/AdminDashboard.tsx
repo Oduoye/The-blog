@@ -15,15 +15,19 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "react-router-dom";
 import { PlusCircle, Edit, Trash2, Eye, Settings, Megaphone, BarChart3, Mail, MessageSquare, FileText, Bug, Users } from "lucide-react";
+import type { Database } from '@/integrations/supabase/types'; // New: Import Database type
+
+// Define BlogPost type specifically for the 'posts' table in 'blog' schema
+type BlogPost = Database['blog']['Tables']['posts']['Row'];
 
 const AdminDashboard = () => {
-  const { posts, loading, deletePost } = useAdminBlogPosts();
-  const { profile } = useAuth();
+  const { posts, loading, deletePost } = useAdminBlogPosts(); // useAdminBlogPosts now fetches from blog.posts
+  const { profile } = useAuth(); // profile now matches blog.user_profiles
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  const handleDeletePost = async (id: string) => {
+  const handleDeletePost = async (postId: string) => { // Changed id to postId
     if (window.confirm("Are you sure you want to delete this post?")) {
-      await deletePost(id);
+      await deletePost(postId); // deletePost now uses postId
     }
   };
 
@@ -225,7 +229,7 @@ const AdminDashboard = () => {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {posts.map((post) => (
-                          <tr key={post.id} className="hover:bg-gray-50">
+                          <tr key={post.post_id} className="hover:bg-gray-50"> {/* Key is now post_id */}
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="text-sm font-medium text-gray-900 max-w-xs truncate">{post.title}</div>
                               {post.excerpt && (
@@ -241,16 +245,17 @@ const AdminDashboard = () => {
                               <Badge variant="outline">{post.category || "General"}</Badge>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-gray-500 text-sm">
+                              {/* Use published_at or created_at from blog.posts, modified_at is also available */}
                               {formatDate(post.published_at || post.created_at)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
-                              <Link to={`/post/${post.id}`}>
+                              <Link to={`/post/${post.post_id}`}> {/* Link uses post_id */}
                                 <Button size="sm" variant="ghost">
                                   <Eye className="h-4 w-4 mr-2" />
                                   View
                                 </Button>
                               </Link>
-                              <Link to={`/admin/edit/${post.id}`}>
+                              <Link to={`/admin/edit/${post.post_id}`}> {/* Link uses post_id */}
                                 <Button size="sm">
                                   <Edit className="h-4 w-4 mr-2" />
                                   Edit
@@ -259,7 +264,7 @@ const AdminDashboard = () => {
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => handleDeletePost(post.id)}
+                                onClick={() => handleDeletePost(post.post_id)} {/* handleDeletePost uses post_id */}
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Delete
@@ -375,7 +380,7 @@ const AdminDashboard = () => {
                           <strong>Specialized Category:</strong> {profile?.specialized_category || 'Not set'}
                         </div>
                         <div>
-                          <strong>Role:</strong> Team Member
+                          <strong>Role:</strong> {profile?.is_creator ? 'Content Creator' : 'Team Member'} {/* New: check is_creator */}
                         </div>
                       </div>
                     </div>
