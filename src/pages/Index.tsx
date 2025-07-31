@@ -11,17 +11,23 @@ import { PerformanceLogger, ClientCache, debounce } from "@/utils/performanceLog
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useIsMobile } from "@/hooks/use-mobile";
+import type { Database } from '@/integrations/supabase/types'; // New: Import Database type
+
+// Define BlogPost type specifically for the 'posts' table in 'blog' schema
+type BlogPost = Database['blog']['Tables']['posts']['Row'];
+type UserProfile = Database['blog']['Tables']['user_profiles']['Row'];
 
 const Index = () => {
-  const { posts, loading } = useBlogPosts();
+  const { posts, loading } = useBlogPosts(); // useBlogPosts now fetches from blog.posts and joins author data
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [isInitialLoad, setIsInitialLoad] = useState(true);
-  const [displayedPosts, setDisplayedPosts] = useState<any[]>([]);
+  const [displayedPosts, setDisplayedPosts] = useState<BlogPost[]>([]); // Use BlogPost type here
   const [currentPage, setCurrentPage] = useState(1);
   
+  // Categories are derived from posts, so they remain dynamic based on fetched data
   const categories = ["all", ...Array.from(new Set(posts.map(post => post.category || "").filter(Boolean)))];
   
   // Posts per page based on device
@@ -137,20 +143,21 @@ const Index = () => {
 
       {/* Featured Posts Carousel - Only show if there are featured posts */}
       <FeaturedPostsCarousel posts={posts.map(post => ({
-        id: post.id,
+        // Use the new column names for the carousel component
+        post_id: post.post_id, // new name
         title: post.title,
         excerpt: post.excerpt || "",
-        content: post.content || "",
-        author: post.author_name || "Unknown",
-        authorId: post.author_id,
+        content: post.content,
+        author: (post as any).author_name || "Unknown", // author_name is now from join
+        author_id: post.author_id, // new name
         category: post.category || "General",
         tags: post.tags || [],
-        imageUrl: post.image_url || "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=800&h=400&fit=crop",
+        imageUrl: post.featured_image_url || "https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=800&h=400&fit=crop", // new name
         publishedAt: post.published_at || post.created_at || new Date().toISOString(),
         published: post.is_published || false,
-        featured: post.featured || false,
-        mediaItems: post.media_items || [],
-        socialHandles: post.social_handles || {}
+        featured: (post as any).featured || false, // Assuming 'featured' still exists or is derived
+        mediaItems: (post as any).media_items || [], // Assuming 'media_items' still exists or is derived
+        socialHandles: (post as any).social_handles || {} // Assuming 'social_handles' still exists or is derived
       }))} />
 
       {/* Main Content */}
@@ -219,8 +226,22 @@ const Index = () => {
             {/* Posts Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8 animate-fade-in">
               {displayedPosts.map((post) => (
-                <div key={post.id} className="animate-fade-in hover:scale-105 transition-transform duration-300">
-                  <BlogPostCard post={post} />
+                // BlogPostCard component needs to be updated to accept new prop names
+                <div key={post.post_id} className="animate-fade-in hover:scale-105 transition-transform duration-300">
+                  {/* Pass props aligning to BlogPostCard's expectations */}
+                  <BlogPostCard 
+                    post={{
+                      id: post.post_id, // Map to 'id' for BlogPostCard
+                      title: post.title,
+                      excerpt: post.excerpt,
+                      author_name: (post as any).author_name || "Unknown Author", // From join
+                      published_at: post.published_at || post.created_at,
+                      created_at: post.created_at,
+                      category: post.category,
+                      tags: post.tags,
+                      image_url: post.featured_image_url // Map to 'image_url' for BlogPostCard
+                    }} 
+                  />
                 </div>
               ))}
             </div>
