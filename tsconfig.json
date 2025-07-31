@@ -9,11 +9,12 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
+    "noImplicitAny": true,           // New: Disallow implicit 'any' types
+    "noUnusedParameters": true,      // New: Warn about unused parameters
     "skipLibCheck": true,
     "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
+    "noUnusedLocals": true,          // New: Warn about unused local variables
+    "strictNullChecks": true,        // New: Enforce null and undefined checks
+    "strict": true                   // New: Enable all strict type-checking options for project consistency
   }
 }
