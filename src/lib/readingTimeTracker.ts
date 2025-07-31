@@ -188,7 +188,35 @@ class ReadingTimeTracker {
     const endTime = Date.now();
     const duration = endTime - this.currentSession.startTime;
 
-    // Only count as valid reading if minimum time threshold is met and user was active
+    -- New: `post_id` is now `post_id`
+-- Select all from posts, and author's display_name from user_profiles
+SELECT
+    p.post_id,
+    p.title,
+    p.author_id,
+    up.display_name AS author_name, -- Alias display_name to author_name
+    p.category,
+    p.tags,
+    p.featured_image_url, -- New column name
+    p.reading_time_minutes, -- New column name
+    p.is_published,
+    p.published_at,
+    p.meta_title,
+    p.meta_description,
+    p.views_count,
+    p.likes_count,
+    p.comments_count,
+    p.created_at,
+    p.modified_at -- New timestamp column
+FROM
+    blog.posts p
+JOIN
+    blog.user_profiles up ON p.author_id = up.user_id
+WHERE
+    p.is_published = TRUE
+ORDER BY
+    p.created_at DESC;
+-- Only count as valid reading if minimum time threshold is met and user was active
     const isValidReading = duration >= this.MIN_READING_TIME && 
                           this.interactionCount > 0 && 
                           this.maxScrollDepth > 10; // At least 10% scroll
@@ -210,7 +238,20 @@ class ReadingTimeTracker {
       isValidReading
     });
 
-    // Update session data
+    -- Updated schema to 'blog'
+-- Updated table name to 'posts'
+-- Updated eq column to 'post_id'
+-- Updated order by 'created_at' (new column name in DB)
+SELECT
+    *,
+    author:blog_user_profiles(display_name) -- Correct way to select joined fields
+FROM
+    blog.posts
+WHERE
+    is_published = TRUE
+ORDER BY
+    created_at DESC;
+-- Update session data
     if (this.sessionData && isValidReading) {
       this.sessionData.totalReadingTime += duration;
       this.saveSession();
@@ -239,7 +280,35 @@ class ReadingTimeTracker {
   }
 
   public calculateBounceRate(postId: string): boolean {
-    // A bounce is defined as:
+    -- New: `post_id` is now `post_id`
+-- Select all from posts, and author's display_name from user_profiles
+SELECT
+    p.post_id,
+    p.title,
+    p.author_id,
+    up.display_name AS author_name, -- Alias display_name to author_name
+    p.category,
+    p.tags,
+    p.featured_image_url, -- New column name
+    p.reading_time_minutes, -- New column name
+    p.is_published,
+    p.published_at,
+    p.meta_title,
+    p.meta_description,
+    p.views_count,
+    p.likes_count,
+    p.comments_count,
+    p.created_at,
+    p.modified_at -- New timestamp column
+FROM
+    blog.posts p
+JOIN
+    blog.user_profiles up ON p.author_id = up.user_id
+WHERE
+    p.is_published = TRUE
+ORDER BY
+    p.created_at DESC;
+-- A bounce is defined as:
     // 1. User viewed only one page in the session
     // 2. Reading time is less than 30 seconds
     // 3. Scroll depth is less than 25%
