@@ -3,8 +3,9 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
-type Profile = Database['public']['Tables']['profiles']['Row'];
-type ProfileUpdate = Database['public']['Tables']['profiles']['Update'];
+// Updated Profile type to match the new 'blog.user_profiles' table
+type Profile = Database['blog']['Tables']['user_profiles']['Row'];
+type ProfileUpdate = Database['blog']['Tables']['user_profiles']['Update'];
 
 export const useUserManagement = () => {
   const [users, setUsers] = useState<Profile[]>([]);
@@ -16,8 +17,10 @@ export const useUserManagement = () => {
       setLoading(true);
       console.log('🔍 Fetching all user profiles...');
       
+      // Updated table name and schema to 'blog.user_profiles'
+      // Updated order by 'created_at' (new column name in DB)
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -44,10 +47,12 @@ export const useUserManagement = () => {
     try {
       console.log('📝 Updating user:', userId, updates);
 
+      // Updated table name and schema to 'blog.user_profiles'
+      // Updated eq column to 'user_id'
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles')
         .update(updates)
-        .eq('id', userId)
+        .eq('user_id', userId) 
         .select()
         .single();
 
@@ -55,8 +60,9 @@ export const useUserManagement = () => {
         throw error;
       }
 
+      // Update local state, key is now 'user_id'
       setUsers(prev => prev.map(user => 
-        user.id === userId ? data : user
+        user.user_id === userId ? data : user
       ));
       
       toast({
@@ -81,6 +87,7 @@ export const useUserManagement = () => {
       console.log('🗑️ Deleting user:', userId);
 
       // First, delete the user's auth account
+      // Supabase auth.admin.deleteUser still uses 'id'
       const { error: authError } = await supabase.auth.admin.deleteUser(userId);
       
       if (authError) {
@@ -88,16 +95,19 @@ export const useUserManagement = () => {
       }
 
       // Delete the profile record
+      // Updated table name and schema to 'blog.user_profiles'
+      // Updated eq column to 'user_id'
       const { error: profileError } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles')
         .delete()
-        .eq('id', userId);
+        .eq('user_id', userId);
 
       if (profileError) {
         throw profileError;
       }
 
-      setUsers(prev => prev.filter(user => user.id !== userId));
+      // Update local state, key is now 'user_id'
+      setUsers(prev => prev.filter(user => user.user_id !== userId));
       
       toast({
         title: "Success",
@@ -118,10 +128,12 @@ export const useUserManagement = () => {
     try {
       console.log(`${suspend ? '🚫' : '✅'} ${suspend ? 'Suspending' : 'Unsuspending'} user:`, userId);
 
+      // Updated table name and schema to 'blog.user_profiles'
+      // Updated eq column to 'user_id'
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles')
         .update({ is_suspended: suspend })
-        .eq('id', userId)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -129,8 +141,9 @@ export const useUserManagement = () => {
         throw error;
       }
 
+      // Update local state, key is now 'user_id'
       setUsers(prev => prev.map(user => 
-        user.id === userId ? data : user
+        user.user_id === userId ? data : user
       ));
       
       toast({
@@ -154,10 +167,12 @@ export const useUserManagement = () => {
     try {
       console.log('🔍 Fetching user by ID:', userId);
 
+      // Updated table name and schema to 'blog.user_profiles'
+      // Updated eq column to 'user_id'
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles')
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .single();
 
       if (error) {
@@ -176,14 +191,15 @@ export const useUserManagement = () => {
     fetchUsers();
 
     // Set up realtime subscription for user profiles
+    // Updated schema and table name
     const channel = supabase
       .channel('user-management-profiles')
       .on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public',
-          table: 'profiles'
+          schema: 'blog', // Updated schema
+          table: 'user_profiles' // Updated table name
         },
         (payload) => {
           console.log('📡 Realtime update for user profiles:', payload);
@@ -191,11 +207,13 @@ export const useUserManagement = () => {
           if (payload.eventType === 'INSERT') {
             setUsers(prev => [payload.new as Profile, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
+            // Key is now 'user_id'
             setUsers(prev => prev.map(user => 
-              user.id === payload.new.id ? payload.new as Profile : user
+              user.user_id === payload.new.user_id ? payload.new as Profile : user
             ));
           } else if (payload.eventType === 'DELETE') {
-            setUsers(prev => prev.filter(user => user.id !== payload.old.id));
+            // Key is now 'user_id'
+            setUsers(prev => prev.filter(user => user.user_id !== payload.old.user_id));
           }
         }
       )
