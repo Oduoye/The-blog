@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext'; // New: Import useAuth to get user_id
 
 export const uploadBlogImage = async (file: File): Promise<string> => {
   try {
@@ -29,7 +30,7 @@ export const uploadBlogImage = async (file: File): Promise<string> => {
 
     console.log('Uploading file:', fileName);
 
-    // Upload the file
+    // Upload the file to 'blog-images' bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('blog-images')
       .upload(fileName, file, {
@@ -84,17 +85,17 @@ export const uploadAvatar = async (file: File, userId: string): Promise<string> 
 
     console.log('✓ User authenticated:', user.email);
 
-    // Generate unique filename with user folder
+    // Generate unique filename with user_id folder (assuming userId is from auth.uid())
     const fileExt = file.name.split('.').pop();
     const fileName = `${userId}/${Date.now()}-avatar.${fileExt}`;
 
     console.log('Uploading avatar:', fileName);
 
-    // Delete old avatar if it exists
+    // Delete old avatar if it exists (assuming user_id folder contains old avatars)
     try {
       const { data: existingFiles } = await supabase.storage
         .from('avatars')
-        .list(userId);
+        .list(userId); // List files in the user's folder
       
       if (existingFiles && existingFiles.length > 0) {
         const filesToDelete = existingFiles.map(file => `${userId}/${file.name}`);
@@ -102,15 +103,15 @@ export const uploadAvatar = async (file: File, userId: string): Promise<string> 
         console.log('✓ Old avatars cleaned up');
       }
     } catch (error) {
-      console.log('No old avatars to clean up');
+      console.log('No old avatars to clean up or error during cleanup:', error);
     }
 
-    // Upload the file
+    // Upload the file to 'avatars' bucket
     const { data: uploadData, error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(fileName, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: true // Upsert might not be strictly needed if old files are deleted first
       });
 
     if (uploadError) {
@@ -142,11 +143,12 @@ export const deleteBlogImage = async (url: string): Promise<void> => {
     console.log('Deleting blog image:', url);
     
     // Extract file path from URL
+    // Assumes URL format like: https://[project_ref].supabase.co/storage/v1/object/public/blog-images/filename.ext
     const urlParts = url.split('/');
-    const fileName = urlParts[urlParts.length - 1];
+    const fileName = urlParts[urlParts.length - 1]; // Get just the filename
 
     const { error } = await supabase.storage
-      .from('blog-images')
+      .from('blog-images') // Use 'blog-images' bucket
       .remove([fileName]);
 
     if (error) {
@@ -166,12 +168,14 @@ export const deleteAvatar = async (url: string): Promise<void> => {
     console.log('Deleting avatar:', url);
     
     // Extract file path from URL
+    // Assumes URL format like: https://[project_ref].supabase.co/storage/v1/object/public/avatars/user_id/filename.ext
     const urlParts = url.split('/');
-    const fileName = urlParts.slice(-2).join('/'); // Get userId/filename
+    // Get the path within the bucket: user_id/filename.ext
+    const fileNameInBucket = urlParts.slice(urlParts.indexOf('avatars') + 1).join('/'); 
 
     const { error } = await supabase.storage
-      .from('avatars')
-      .remove([fileName]);
+      .from('avatars') // Use 'avatars' bucket
+      .remove([fileNameInBucket]);
 
     if (error) {
       console.error('Delete error:', error);
@@ -189,8 +193,10 @@ export const deleteAvatar = async (url: string): Promise<void> => {
 export const isValidImageUrl = (url: string): boolean => {
   try {
     const urlObj = new URL(url);
+    // New: Check for 'storage/v1/object/public' path structure from Supabase
     return urlObj.hostname.includes('supabase.co') && 
-           (url.includes('blog-images') || url.includes('avatars'));
+           url.includes('storage/v1/object/public') && 
+           (url.includes('/blog-images/') || url.includes('/avatars/') || url.includes('/promotional-images/'));
   } catch {
     return false;
   }
@@ -224,6 +230,15 @@ export const debugStorageSetup = async () => {
         .from('avatars')
         .list('', { limit: 1 });
       console.log('avatars access:', listError ? 'FAILED' : 'SUCCESS');
+      if (listError) console.log('List error:', listError);
+    }
+
+    // Test promotional-images access
+    if (buckets?.find(b => b.id === 'promotional-images')) {
+      const { data: files, error: listError } = await supabase.storage
+        .from('promotional-images')
+        .list('', { limit: 1 });
+      console.log('promotional-images access:', listError ? 'FAILED' : 'SUCCESS');
       if (listError) console.log('List error:', listError);
     }
     
