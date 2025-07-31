@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useContactSettings } from "@/hooks/useContactSettings";
+import { useContactSettings } from "@/hooks/useContactSettings"; // useContactSettings is updated
 import { Mail, Phone, MapPin, Globe, Save, RefreshCw } from "lucide-react";
 
 const ContactManagement = () => {
-  const { toast } = useToast();
+  // useContactSettings hook is already updated to new schema
   const { contactSettings, loading, updateContactSettings, refetch } = useContactSettings();
   
   const [formData, setFormData] = useState({
@@ -51,6 +51,7 @@ const ContactManagement = () => {
   const handleSave = async () => {
     setSaving(true);
     try {
+      // updateContactSettings hook is already updated to use modified_at
       await updateContactSettings(formData);
     } catch (error) {
       // Error is already handled in the hook
