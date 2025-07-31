@@ -3,10 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { usePublicAboutUsSections } from "@/hooks/useAboutUsSections";
 import { Mail, Phone, MapPin, Globe, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useContactSettings } from "@/hooks/useContactSettings"; // New: Import useContactSettings
 
 const About = () => {
   const [isLoaded, setIsLoaded] = useState(false);
-  const { sections, loading, error } = usePublicAboutUsSections();
+  const { sections, loading, error } = usePublicAboutUsSections(); // This hook is already updated
+  const { contactSettings } = useContactSettings(); // New: Fetch contact settings for contact info
 
   useEffect(() => {
     // Trigger animations after component mounts
@@ -28,7 +30,9 @@ const About = () => {
     return sections.find(section => section.section_type === 'mission');
   };
 
-  const getContactSection = () => {
+  // The contact section content is now primarily managed via ContactSettings hook
+  // We can still look for a section marked 'contact' in about_us_sections for title/content
+  const getContactSectionFromAbout = () => {
     return sections.find(section => section.section_type === 'contact');
   };
 
@@ -65,7 +69,7 @@ const About = () => {
 
   const heroSection = getHeroSection();
   const missionSection = getMissionSection();
-  const contactSection = getContactSection();
+  const contactSectionAbout = getContactSectionFromAbout(); // From about_us_sections
   const otherSections = getOtherSections();
 
   return (
@@ -159,34 +163,56 @@ const About = () => {
           </Card>
         ))}
 
-        {/* Contact Section */}
-        {contactSection && (
-          <Card className={`transition-all duration-1000 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
-                style={{ transitionDelay: `${600 + otherSections.length * 200}ms` }}>
-            <CardContent className="p-8 text-center">
-              <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center justify-center gap-3">
-                {(contactSection.metadata as any)?.icon_svg && (
-                  <div 
-                    className="w-8 h-8 flex items-center justify-center text-blue-600"
-                    dangerouslySetInnerHTML={{ __html: (contactSection.metadata as any).icon_svg }}
-                  />
-                )}
-                <span>{contactSection.title}</span>
-              </h2>
-              <div className="text-gray-600 mb-6 whitespace-pre-line">
-                {contactSection.content}
-              </div>
-              <div className="space-y-2 hover:bg-gray-50 p-4 rounded-lg transition-colors duration-200">
-                <p className="text-gray-700">
-                  <strong>Email:</strong> noncefirewall@gmail.com
+        {/* Contact Section - Prioritize data from contactSettings hook */}
+        <Card className={`transition-all duration-1000 ${isLoaded ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+              style={{ transitionDelay: `${600 + otherSections.length * 200}ms` }}>
+          <CardContent className="p-8 text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4 flex items-center justify-center gap-3">
+              {/* Use icon from About Us section if available, otherwise default to Mail */}
+              {(contactSectionAbout?.metadata as any)?.icon_svg ? (
+                <div 
+                  className="w-8 h-8 flex items-center justify-center text-blue-600"
+                  dangerouslySetInnerHTML={{ __html: (contactSectionAbout.metadata as any).icon_svg }}
+                />
+              ) : (
+                <Mail className="h-8 w-8 text-blue-600" /> // Default icon
+              )}
+              <span>{contactSectionAbout?.title || 'Get In Touch'}</span> {/* Use title from About section or default */}
+            </h2>
+            <div className="text-gray-600 mb-6 whitespace-pre-line">
+              {contactSectionAbout?.content || contactSettings?.description || 'We are here to help! Reach out to us.'}
+            </div>
+            <div className="space-y-2 hover:bg-gray-50 p-4 rounded-lg transition-colors duration-200">
+              {contactSettings?.email && (
+                <p className="text-gray-700 flex items-center justify-center gap-2">
+                  <Mail className="h-4 w-4 text-gray-600" />
+                  <strong>Email:</strong> {contactSettings.email}
                 </p>
-                <p className="text-gray-600">
-                  We typically respond within 24 hours.
+              )}
+              {contactSettings?.phone && (
+                <p className="text-gray-700 flex items-center justify-center gap-2">
+                  <Phone className="h-4 w-4 text-gray-600" />
+                  <strong>Phone:</strong> {contactSettings.phone}
                 </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+              )}
+              {contactSettings?.address && (
+                <p className="text-gray-700 flex items-center justify-center gap-2">
+                  <MapPin className="h-4 w-4 text-gray-600" />
+                  <strong>Address:</strong> {contactSettings.address}
+                </p>
+              )}
+              {contactSettings?.website && (
+                <p className="text-gray-700 flex items-center justify-center gap-2">
+                  <Globe className="h-4 w-4 text-gray-600" />
+                  <strong>Website:</strong> <a href={contactSettings.website} target="_blank" rel="noopener noreferrer">{contactSettings.website}</a>
+                </p>
+              )}
+              <p className="text-gray-600">
+                We typically respond within 24 hours.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Fallback if no sections */}
         {sections.length === 0 && !loading && (
