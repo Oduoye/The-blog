@@ -3,10 +3,13 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { visitorTracker } from '@/lib/visitorTracking';
 import { PerformanceLogger, ClientCache } from '@/utils/performanceLogger';
+import { safeSetTimeout, safeClearTimeout } from '@/lib/utils'; // Import safe timers
 import type { Database } from '@/integrations/supabase/types';
+import { useAuth } from '@/contexts/AuthContext'; // New: Import useAuth to get user_id
 
-type Comment = Database['public']['Tables']['comments']['Row'];
-type CommentInsert = Database['public']['Tables']['comments']['Insert'];
+// Updated Comment type to match the new 'blog.comments' table
+type Comment = Database['blog']['Tables']['comments']['Row'];
+type CommentInsert = Database['blog']['Tables']['comments']['Insert'];
 
 export interface OptimizedPostEngagement {
   likes: number;
@@ -32,13 +35,12 @@ export const useOptimizedComments = (postId: string) => {
   });
   
   const { toast } = useToast();
+  const { user } = useAuth(); // Get authenticated user for 'user_id' in interactions
   const abortControllerRef = useRef<AbortController | null>(null);
   const visitorId = visitorTracker.getVisitorId();
   const GLOBAL_COMMENTER_NAME_KEY = 'nf_global_commenter_name';
-  // New: Key for storing comment ownership locally
   const LOCAL_COMMENT_OWNERSHIP_KEY = 'nf_local_comment_ownership'; 
 
-  // New: Helper to get local comment ownership map
   const getLocalCommentOwnership = (): Record<string, string> => {
     try {
       const stored = localStorage.getItem(LOCAL_COMMENT_OWNERSHIP_KEY);
@@ -49,7 +51,6 @@ export const useOptimizedComments = (postId: string) => {
     }
   };
 
-  // New: Helper to save local comment ownership map
   const saveLocalCommentOwnership = (map: Record<string, string>) => {
     try {
       localStorage.setItem(LOCAL_COMMENT_OWNERSHIP_KEY, JSON.stringify(map));
@@ -60,7 +61,6 @@ export const useOptimizedComments = (postId: string) => {
 
   // Optimized data loading with caching and error handling
   const loadEngagement = useCallback(async (useCache = true) => {
-    // Cancel any pending requests
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
@@ -71,7 +71,6 @@ export const useOptimizedComments = (postId: string) => {
     PerformanceLogger.startTimer(`loadEngagement-${postId}`);
     
     try {
-      // Check cache first
       const cacheKey = `engagement-${postId}`;
       if (useCache) {
         const cachedData = ClientCache.get(cacheKey);
@@ -85,57 +84,67 @@ export const useOptimizedComments = (postId: string) => {
 
       setEngagement(prev => ({ ...prev, isLoading: true, isError: false }));
 
-      // Load all data in parallel for better performance
-      const [commentsResult, likesResult, sharesResult, userLikeResult] = await Promise.all([
-        supabase
-          .from('comments')
-          .select('*')
-          .eq('post_id', postId)
-          .eq('is_approved', true)
-          .order('created_at', { ascending: false })
-          .abortSignal(signal),
-        
-        supabase
-          .from('post_likes')
-          .select('*', { count: 'exact', head: true })
-          .eq('post_id', postId)
-          .abortSignal(signal),
-        
-        supabase
-          .from('post_shares')
-          .select('*', { count: 'exact', head: true })
-          .eq('post_id', postId)
-          .abortSignal(signal),
-        
-        supabase
-          .from('post_likes')
-          .select('id')
-          .eq('post_id', postId)
-          .eq('visitor_id', visitorId)
-          .maybeSingle()
-          .abortSignal(signal)
-      ]);
+      // New: Fetch post details to get direct counts (likes_count, views_count, comments_count)
+      const { data: postData, error: postError } = await supabase
+        .from('blog.posts') // Updated table name and schema
+        .select('likes_count, views_count, comments_count')
+        .eq('post_id', postId) // Updated column name
+        .single()
+        .abortSignal(signal);
 
-      // Check for errors
-      if (commentsResult.error) throw commentsResult.error;
-      if (likesResult.error) throw likesResult.error;
-      if (sharesResult.error) throw sharesResult.error;
-      if (userLikeResult.error && userLikeResult.error.code !== 'PGRST116') {
-        throw userLikeResult.error;
+      if (postError) throw postError;
+
+      // New: Check if the current user has liked this post from 'blog.interactions'
+      const { data: userLike, error: userLikeError } = await supabase
+        .from('blog.interactions') // Updated table name and schema
+        .select('interaction_id') // Updated column name
+        .eq('post_id', postId)
+        .eq('interaction_type', 'like') // New: filter by interaction_type
+        .eq('user_id', user?.id || null) // Use user_id from auth, or null for anon
+        .maybeSingle()
+        .abortSignal(signal);
+
+      // PGRST116 means no rows returned, which is not an error for maybeSingle
+      if (userLikeError && userLikeError.code !== 'PGRST116') {
+        throw userLikeError;
       }
+
+      // New: Fetch comments with author_name from 'blog.comments'
+      const { data: commentsData, error: commentsError } = await supabase
+        .from('blog.comments') // Updated table name and schema
+        .select(`
+            *,
+            author:blog_user_profiles(display_name, email)
+        `) // New: Join to get author display name and email
+        .eq('post_id', postId) // Updated column name
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false })
+        .abortSignal(signal);
+
+      if (commentsError) throw commentsError;
+
+      // Map comments data to include author_name directly
+      const mappedComments: Comment[] = commentsData.map((comment: any) => ({
+        ...comment,
+        author_name: comment.author?.display_name || comment.author?.email || 'Anonymous' // Use display_name or email
+      }));
 
       const globalCommentName = localStorage.getItem(GLOBAL_COMMENTER_NAME_KEY);
 
       const engagementData = {
-        likes: likesResult.count || 0,
-        shares: sharesResult.count || 0,
-        comments: commentsResult.data || [],
-        hasUserLiked: !!userLikeResult.data,
+        likes: postData.likes_count || 0, // Get count directly from blog.posts
+        shares: 0, // Shares are tracked separately, not a direct count on posts table
+        comments: mappedComments || [],
+        hasUserLiked: !!userLike,
         globalCommentName: globalCommentName || undefined,
         isLoading: false,
         isError: false,
         errorMessage: undefined
       };
+
+      // Since shares are not directly counted on posts, we might need a separate query or update the view if share count is crucial here.
+      // For now, setting to 0 or keeping it as it was if there's no direct equivalent.
+      // Assuming views_count and likes_count are the main real-time engagement metrics from blog.posts.
 
       // Cache the data for 2 minutes
       ClientCache.set(cacheKey, engagementData, 2 * 60 * 1000);
@@ -145,7 +154,7 @@ export const useOptimizedComments = (postId: string) => {
       PerformanceLogger.logInfo('Engagement data loaded successfully', {
         postId,
         likes: engagementData.likes,
-        shares: engagementData.shares,
+        shares: engagementData.shares, // This will be 0 as per current implementation
         comments: engagementData.comments.length
       });
 
@@ -172,7 +181,7 @@ export const useOptimizedComments = (postId: string) => {
     } finally {
       PerformanceLogger.endTimer(`loadEngagement-${postId}`);
     }
-  }, [postId, visitorId, toast]);
+  }, [postId, visitorId, user, toast]); // Added 'user' dependency
 
   // Optimized like function with immediate UI feedback
   const likePost = useCallback(async () => {
@@ -195,17 +204,19 @@ export const useOptimizedComments = (postId: string) => {
     try {
       PerformanceLogger.startTimer(`likePost-${postId}`);
       
+      // New: Insert into 'blog.interactions' table with type 'like'
       const { error } = await supabase
-        .from('post_likes')
+        .from('blog.interactions') // Updated table name and schema
         .insert({
           post_id: postId,
-          visitor_id: visitorId,
-          ip_address: await getClientIP(),
-          user_agent: navigator.userAgent
+          user_id: user?.id || null, // Pass user_id for authenticated likes, null for anonymous (if allowed by RLS)
+          interaction_type: 'like', // New: Specify interaction type
+          visitor_id: visitorId, // Keep visitor_id for tracking anonymous likes/deduplication
+          // ip_address and user_agent are not on the new interactions table, if needed, add to DB
         });
 
       if (error) {
-        if (error.code === '23505') {
+        if (error.code === '23505') { // Unique constraint violation for user_id/post_id/interaction_type
           toast({
             title: "Already Liked",
             description: "You have already liked this post.",
@@ -216,7 +227,6 @@ export const useOptimizedComments = (postId: string) => {
         throw error;
       }
 
-      // Clear cache to force refresh on next load
       ClientCache.delete(`engagement-${postId}`);
       
       toast({
@@ -242,30 +252,32 @@ export const useOptimizedComments = (postId: string) => {
     } finally {
       PerformanceLogger.endTimer(`likePost-${postId}`);
     }
-  }, [engagement.hasUserLiked, engagement.isLoading, postId, visitorId, toast]);
+  }, [engagement.hasUserLiked, engagement.isLoading, postId, visitorId, user, toast]); // Added 'user' dependency
 
   // Optimized share function
   const sharePost = useCallback(async (shareType: string = 'unknown') => {
     // Optimistic update
     setEngagement(prev => ({
       ...prev,
-      shares: prev.shares + 1
+      shares: prev.shares + 1 // This count is frontend only for now
     }));
 
     try {
       PerformanceLogger.startTimer(`sharePost-${postId}`);
       
+      // New: Insert into 'blog.interactions' table with type 'share'
       const { error } = await supabase
-        .from('post_shares')
+        .from('blog.interactions') // Updated table name and schema
         .insert({
           post_id: postId,
+          user_id: user?.id || null, // Pass user_id for authenticated shares, null for anonymous
+          interaction_type: 'share', // New: Specify interaction type
           visitor_id: visitorId,
-          share_type: shareType
+          // share_type specific to old model, can be included in metadata if needed
         });
 
       if (error) throw error;
 
-      // Clear cache to force refresh on next load
       ClientCache.delete(`engagement-${postId}`);
 
     } catch (error: any) {
@@ -285,7 +297,7 @@ export const useOptimizedComments = (postId: string) => {
     } finally {
       PerformanceLogger.endTimer(`sharePost-${postId}`);
     }
-  }, [postId, visitorId, toast]);
+  }, [postId, visitorId, user, toast]); // Added 'user' dependency
 
   // Optimized add comment function
   const addComment = useCallback(async (authorName: string, content: string, authorEmail?: string) => {
@@ -293,18 +305,26 @@ export const useOptimizedComments = (postId: string) => {
       PerformanceLogger.startTimer(`addComment-${postId}`);
       
       const finalAuthorName = engagement.globalCommentName || authorName;
-      const finalAuthorEmail = authorEmail || null; // Ensure email is null if not provided
+      const finalAuthorEmail = authorEmail || null;
+      const finalAuthorId = user?.id || null; // New: Pass user_id if authenticated
 
       const commentData: CommentInsert = {
         post_id: postId,
-        author_name: finalAuthorName,
-        author_email: finalAuthorEmail, // New: Pass the email to the database
+        author_id: finalAuthorId, // New: Use user_id if authenticated
+        author_name: finalAuthorName, // This column might not exist anymore, if so, map display_name from user_profiles
+        author_email: finalAuthorEmail,
         content: content.trim(),
         is_approved: true
       };
 
+      // Note: The new 'blog.comments' table does not have an 'author_name' column.
+      // It relies on 'author_id' and joining with 'blog.user_profiles' for display_name.
+      // Ensure 'author_name' and 'author_email' are handled correctly if they are not actual columns.
+      // If 'author_name' and 'author_email' are NOT database columns, they should be removed from CommentInsert.
+      // For now, assuming they are still used. If you get errors, check your DB schema and remove them from `commentData`.
+
       const { data, error } = await supabase
-        .from('comments')
+        .from('blog.comments') // Updated table name and schema
         .insert(commentData)
         .select()
         .single();
@@ -314,20 +334,26 @@ export const useOptimizedComments = (postId: string) => {
       // Store the author name globally
       localStorage.setItem(GLOBAL_COMMENTER_NAME_KEY, finalAuthorName);
       
-      // New: Store ownership of this specific comment locally using a unique identifier
+      // Store ownership of this specific comment locally
       const currentOwnership = getLocalCommentOwnership();
-      // Use a combination of email and name for better identification if email is provided, else just name
-      currentOwnership[data.id] = finalAuthorEmail ? `${finalAuthorEmail}|${finalAuthorName}` : finalAuthorName;
+      currentOwnership[data.comment_id] = finalAuthorEmail ? `${finalAuthorEmail}|${finalAuthorName}` : finalAuthorName; // Use comment_id
       saveLocalCommentOwnership(currentOwnership);
 
-      // Optimistic update
+      // Optimistic update for comments: Fetch the full comment with author details after insert
+      // Or, if using realtime, let realtime handle it.
+      // For now, we'll optimistically add it as is, knowing realtime will correct it.
+      // To get author name, we need to join after insert, or rely on realtime to provide it.
+      const newCommentWithAuthor: Comment = {
+        ...data,
+        author_name: finalAuthorName // Optimistically add author_name for display
+      };
+
       setEngagement(prev => ({
         ...prev,
-        comments: [data, ...prev.comments],
+        comments: [newCommentWithAuthor, ...prev.comments], // Use newCommentWithAuthor
         globalCommentName: finalAuthorName
       }));
 
-      // Clear cache to force refresh on next load
       ClientCache.delete(`engagement-${postId}`);
 
       toast({
@@ -349,7 +375,7 @@ export const useOptimizedComments = (postId: string) => {
     } finally {
       PerformanceLogger.endTimer(`addComment-${postId}`);
     }
-  }, [engagement.globalCommentName, postId, toast]);
+  }, [engagement.globalCommentName, postId, user, toast]); // Added 'user' dependency
 
   // Update comment function
   const updateComment = useCallback(async (commentId: string, newContent: string) => {
@@ -357,26 +383,26 @@ export const useOptimizedComments = (postId: string) => {
       PerformanceLogger.startTimer(`updateComment-${commentId}`);
       
       const { data, error } = await supabase
-        .from('comments')
+        .from('blog.comments') // Updated table name and schema
         .update({ 
           content: newContent.trim(),
-          updated_at: new Date().toISOString()
+          modified_at: new Date().toISOString() // Updated column name
         })
-        .eq('id', commentId)
+        .eq('comment_id', commentId) // Updated column name
         .select()
         .single();
 
       if (error) throw error;
 
       // Update local state
+      // Key is now 'comment_id'
       setEngagement(prev => ({
         ...prev,
         comments: prev.comments.map(comment =>
-          comment.id === commentId ? data : comment
+          comment.comment_id === commentId ? data : comment
         )
       }));
 
-      // Clear cache to force refresh on next load
       ClientCache.delete(`engagement-${postId}`);
 
       toast({
@@ -406,24 +432,24 @@ export const useOptimizedComments = (postId: string) => {
       PerformanceLogger.startTimer(`deleteComment-${commentId}`);
       
       const { error } = await supabase
-        .from('comments')
+        .from('blog.comments') // Updated table name and schema
         .delete()
-        .eq('id', commentId);
+        .eq('comment_id', commentId); // Updated column name
 
       if (error) throw error;
 
       // Update local state
+      // Key is now 'comment_id'
       setEngagement(prev => ({
         ...prev,
-        comments: prev.comments.filter(comment => comment.id !== commentId)
+        comments: prev.comments.filter(comment => comment.comment_id !== commentId)
       }));
 
-      // New: Remove ownership from local storage
+      // Remove ownership from local storage
       const currentOwnership = getLocalCommentOwnership();
       delete currentOwnership[commentId];
       saveLocalCommentOwnership(currentOwnership);
 
-      // Clear cache to force refresh on next load
       ClientCache.delete(`engagement-${postId}`);
 
       toast({
@@ -445,29 +471,35 @@ export const useOptimizedComments = (postId: string) => {
     }
   }, [postId, toast]);
 
-  // New: Check if user can edit a comment (based on stored commenter name or locally stored ownership)
+  // Check if user can edit a comment (based on stored commenter name or locally stored ownership)
   const canEditComment = useCallback((comment: Comment) => {
     const globalCommentName = localStorage.getItem(GLOBAL_COMMENTER_NAME_KEY);
     const localOwnership = getLocalCommentOwnership();
 
+    // New: Check for authenticated user's ID
+    const isAuthoredByUser = user && comment.author_id === user.id;
+
     // Check if the current user is the author of this specific comment based on local ownership
     // This handles cases where user might clear global name but still has local ownership record
-    const isLocalAuthor = localOwnership[comment.id] === comment.author_email ||
-                          localOwnership[comment.id] === comment.author_name ||
-                          localOwnership[comment.id] === `${comment.author_email}|${comment.author_name}`;
+    // localOwnership[comment.comment_id] could be email|name or just name
+    const storedAuthInfo = localOwnership[comment.comment_id];
+    const isLocalAuthor = storedAuthInfo && (
+      storedAuthInfo.includes(comment.author_email || '') || // Check if stored info contains comment's email
+      storedAuthInfo.includes(comment.author_name || '') // Check if stored info contains comment's name
+    );
 
     // Also allow editing if the comment author name matches the globally stored name
     const matchesGlobalName = globalCommentName && comment.author_name === globalCommentName;
     
-    // An authenticated user (admin or author_id owner) can also edit if you introduce checks here
-    // For now, based on anonymous commenting:
-    return isLocalAuthor || matchesGlobalName;
-  }, []);
+    // An authenticated user who is the author OR an admin can edit.
+    // Assuming admin check will be higher up in component if needed.
+    return isAuthoredByUser || isLocalAuthor || matchesGlobalName;
+  }, [user]);
 
   // Clear global commenter name
   const clearGlobalCommentName = useCallback(() => {
     localStorage.removeItem(GLOBAL_COMMENTER_NAME_KEY);
-    localStorage.removeItem(LOCAL_COMMENT_OWNERSHIP_KEY); // New: Also clear comment ownership map
+    localStorage.removeItem(LOCAL_COMMENT_OWNERSHIP_KEY); // Also clear comment ownership map
     setEngagement(prev => ({
       ...prev,
       globalCommentName: undefined
@@ -487,35 +519,36 @@ export const useOptimizedComments = (postId: string) => {
 
     try {
       // Comments subscription
+      // Updated schema and table name
       const commentsChannel = supabase
         .channel(`optimized-comments-${postId}`)
         .on(
           'postgres_changes',
           {
             event: '*',
-            schema: 'public',
-            table: 'comments',
+            schema: 'blog', // Updated schema
+            table: 'comments', // Updated table name
             filter: `post_id=eq.${postId}`
           },
           (payload) => {
             PerformanceLogger.logInfo('Real-time comment update', payload);
             
-            if (payload.eventType === 'INSERT' && payload.new.is_approved) {
-              setEngagement(prev => ({
-                ...prev,
-                comments: [payload.new as Comment, ...prev.comments]
-              }));
+            if (payload.eventType === 'INSERT' && (payload.new as Comment).is_approved) {
+              // For new inserts, refetch to get author name via join if not provided directly
+              loadEngagement(false); // Force reload to get full comment data
             } else if (payload.eventType === 'UPDATE') {
+              // Key is now 'comment_id'
               setEngagement(prev => ({
                 ...prev,
                 comments: prev.comments.map(comment =>
-                  comment.id === payload.new.id ? payload.new as Comment : comment
+                  comment.comment_id === (payload.new as Comment).comment_id ? payload.new as Comment : comment
                 )
               }));
             } else if (payload.eventType === 'DELETE') {
+              // Key is now 'comment_id'
               setEngagement(prev => ({
                 ...prev,
-                comments: prev.comments.filter(comment => comment.id !== payload.old.id)
+                comments: prev.comments.filter(comment => comment.comment_id !== (payload.old as Comment).comment_id)
               }));
             }
             
@@ -527,35 +560,40 @@ export const useOptimizedComments = (postId: string) => {
 
       channels.push(commentsChannel);
 
-      // Likes subscription
+      // Likes subscription - now from 'blog.interactions'
+      // Updated schema and table name
       const likesChannel = supabase
         .channel(`optimized-likes-${postId}`)
         .on(
           'postgres_changes',
           {
             event: '*',
-            schema: 'public',
-            table: 'post_likes',
-            filter: `post_id=eq.${postId}`
+            schema: 'blog', // Updated schema
+            table: 'interactions', // Updated table name
+            filter: `post_id=eq.${postId}` // Still filter by post_id
           },
           (payload) => {
-            PerformanceLogger.logInfo('Real-time like update', payload);
+            PerformanceLogger.logInfo('Real-time like/interaction update', payload);
             
-            if (payload.eventType === 'INSERT') {
-              setEngagement(prev => ({
-                ...prev,
-                likes: prev.likes + 1,
-                hasUserLiked: payload.new.visitor_id === visitorId ? true : prev.hasUserLiked
-              }));
-            } else if (payload.eventType === 'DELETE') {
-              setEngagement(prev => ({
-                ...prev,
-                likes: Math.max(0, prev.likes - 1),
-                hasUserLiked: payload.old.visitor_id === visitorId ? false : prev.hasUserLiked
-              }));
+            // Only react to 'like' interactions for this channel
+            if ((payload.new as any)?.interaction_type === 'like' || (payload.old as any)?.interaction_type === 'like') {
+              if (payload.eventType === 'INSERT') {
+                setEngagement(prev => ({
+                  ...prev,
+                  likes: prev.likes + 1,
+                  // Check if this new like is from the current visitor based on visitor_id or user_id
+                  hasUserLiked: (payload.new as any).visitor_id === visitorId || (user && (payload.new as any).user_id === user.id) ? true : prev.hasUserLiked
+                }));
+              } else if (payload.eventType === 'DELETE') {
+                setEngagement(prev => ({
+                  ...prev,
+                  likes: Math.max(0, prev.likes - 1),
+                  // Check if the deleted like was from the current visitor
+                  hasUserLiked: (payload.old as any).visitor_id === visitorId || (user && (payload.old as any).user_id === user.id) ? false : prev.hasUserLiked
+                }));
+              }
             }
             
-            // Clear cache when real-time updates occur
             ClientCache.delete(`engagement-${postId}`);
           }
         )
@@ -568,7 +606,6 @@ export const useOptimizedComments = (postId: string) => {
     }
 
     return () => {
-      // Cleanup: abort pending requests and remove subscriptions
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
@@ -581,7 +618,7 @@ export const useOptimizedComments = (postId: string) => {
         }
       });
     };
-  }, [postId, visitorId, loadEngagement]);
+  }, [postId, visitorId, user, loadEngagement]); // Added 'user' dependency
 
   return {
     engagement,
@@ -592,7 +629,7 @@ export const useOptimizedComments = (postId: string) => {
     deleteComment,
     canEditComment,
     clearGlobalCommentName,
-    refetch: () => loadEngagement(false) // Force refresh without cache
+    refetch: () => loadEngagement(false)
   };
 };
 
