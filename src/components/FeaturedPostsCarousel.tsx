@@ -1,7 +1,8 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BlogPost } from "@/lib/blogStore";
+// import { BlogPost } from "@/lib/blogStore"; // Old import
+import type { Database } from '@/integrations/supabase/types'; // New: Import Database type
 import {
   Carousel,
   CarouselContent,
@@ -12,8 +13,28 @@ import {
 import Autoplay from "embla-carousel-autoplay";
 import { useRef } from "react";
 
+// New: Define BlogPost type to match the data structure from useBlogPosts (which includes author_name join)
+interface CarouselBlogPost {
+  post_id: string; // New: Primary key name from DB
+  title: string;
+  excerpt: string;
+  content: string;
+  author: string; // Mapped from author_name join
+  author_id: string | null; // From DB
+  category: string;
+  tags: string[];
+  imageUrl: string; // Mapped from featured_image_url
+  publishedAt: string;
+  published: boolean; // Mapped from is_published
+  featured: boolean;
+  // Note: mediaItems and socialHandles were not directly on blog.posts table in your new schema
+  // If these are needed, they would need to be added to blog.posts or fetched via another join/lookup.
+  // For now, removing them from this interface if they are not coming from useBlogPosts directly.
+  // Assuming they might have been derived or from an older schema.
+}
+
 interface FeaturedPostsCarouselProps {
-  posts: BlogPost[];
+  posts: CarouselBlogPost[]; // Use the new interface
 }
 
 const FeaturedPostsCarousel = ({ posts }: FeaturedPostsCarouselProps) => {
@@ -41,6 +62,7 @@ const FeaturedPostsCarousel = ({ posts }: FeaturedPostsCarouselProps) => {
   };
 
   // Filter only featured posts
+  // The 'featured' column is on the blog.posts table.
   const featuredPosts = posts.filter(post => post.featured);
 
   // If no featured posts, don't render the carousel
@@ -73,12 +95,12 @@ const FeaturedPostsCarousel = ({ posts }: FeaturedPostsCarouselProps) => {
         >
           <CarouselContent className="-ml-2 md:-ml-4">
             {featuredPosts.slice(0, 8).map((post) => (
-              <CarouselItem key={post.id} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3">
+              <CarouselItem key={post.post_id} className="pl-2 md:pl-4 basis-full sm:basis-1/2 lg:basis-1/3"> {/* Use post_id as key */}
                 <Card className="group hover:shadow-xl transition-all duration-300 h-full">
-                  <Link to={`/post/${post.id}`}>
+                  <Link to={`/post/${post.post_id}`}> {/* Use post_id in link */}
                     <div className="aspect-video w-full overflow-hidden rounded-t-lg">
                       <img 
-                        src={post.imageUrl} 
+                        src={post.imageUrl} // Use mapped imageUrl
                         alt={post.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="eager" // Prioritize loading for featured images
@@ -99,7 +121,7 @@ const FeaturedPostsCarousel = ({ posts }: FeaturedPostsCarouselProps) => {
                       </span>
                     </div>
                     
-                    <Link to={`/post/${post.id}`}>
+                    <Link to={`/post/${post.post_id}`}> {/* Use post_id in link */}
                       <h3 className="text-base sm:text-lg font-bold leading-tight group-hover:text-blue-600 transition-colors line-clamp-2 mb-2">
                         {post.title}
                       </h3>
@@ -112,12 +134,12 @@ const FeaturedPostsCarousel = ({ posts }: FeaturedPostsCarouselProps) => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2 flex-1 min-w-0">
                         <span className="text-sm text-blue-700 font-bold truncate hover:text-blue-800 transition-colors">
-                          {post.author}
+                          {post.author} {/* Use mapped author name */}
                         </span>
                       </div>
                       <Link 
-                        to={`/post/${post.id}`}
-                        className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors whitespace-nowrap ml-2"
+                        to={`/post/${post.post_id}`} {/* Use post_id in link */}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium transition-all duration-200 whitespace-nowrap ml-2"
                       >
                         Read more →
                       </Link>
