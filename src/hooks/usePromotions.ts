@@ -3,9 +3,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
-type Promotion = Database['public']['Tables']['promotions']['Row'];
-type PromotionInsert = Database['public']['Tables']['promotions']['Insert'];
-type PromotionUpdate = Database['public']['Tables']['promotions']['Update'];
+// Updated Promotion types to match the new 'blog.promotions' table
+type Promotion = Database['blog']['Tables']['promotions']['Row'];
+type PromotionInsert = Database['blog']['Tables']['promotions']['Insert'];
+type PromotionUpdate = Database['blog']['Tables']['promotions']['Update'];
 
 export const usePromotions = () => {
   const [promotions, setPromotions] = useState<Promotion[]>([]);
@@ -17,8 +18,10 @@ export const usePromotions = () => {
       setLoading(true);
       console.log('🔍 Fetching promotions from Supabase...');
       
+      // Updated table name and schema to 'blog.promotions'
+      // Updated order by 'created_at' (column name in new DB)
       const { data, error } = await supabase
-        .from('promotions')
+        .from('blog.promotions')
         .select('*')
         .order('created_at', { ascending: false });
 
@@ -45,8 +48,10 @@ export const usePromotions = () => {
     try {
       console.log('🔍 Getting active promotions for page:', page);
       
+      // Updated table name and schema to 'blog.promotions'
+      // Updated order by 'created_at' (column name in new DB)
       const { data, error } = await supabase
-        .from('promotions')
+        .from('blog.promotions')
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -104,8 +109,9 @@ export const usePromotions = () => {
     try {
       console.log('📝 Creating promotion:', promotionData);
 
+      // Updated table name and schema to 'blog.promotions'
       const { data, error } = await supabase
-        .from('promotions')
+        .from('blog.promotions')
         .insert(promotionData)
         .select()
         .single();
@@ -138,9 +144,12 @@ export const usePromotions = () => {
     try {
       console.log('📝 Updating promotion:', id, updates);
 
+      // Updated table name and schema to 'blog.promotions'
+      // Updated eq column to 'id' (assuming 'id' is still the PK for promotions)
+      // Updated timestamp column to 'modified_at'
       const { data, error } = await supabase
-        .from('promotions')
-        .update(updates)
+        .from('blog.promotions')
+        .update({ ...updates, modified_at: new Date().toISOString() }) 
         .eq('id', id)
         .select()
         .single();
@@ -175,8 +184,10 @@ export const usePromotions = () => {
     try {
       console.log('🗑️ Deleting promotion:', id);
 
+      // Updated table name and schema to 'blog.promotions'
+      // Updated eq column to 'id'
       const { error } = await supabase
-        .from('promotions')
+        .from('blog.promotions')
         .delete()
         .eq('id', id);
 
@@ -206,7 +217,8 @@ export const usePromotions = () => {
   const trackPromotionView = async (promotionId: string, visitorId: string) => {
     try {
       console.log('📊 Tracking promotion view:', { promotionId, visitorId });
-      // Implementation for tracking views
+      // The new interactions table handles views. This function might need re-evaluation if it's meant to track promotion views specifically.
+      // For now, leaving it as a placeholder or remove if not used elsewhere for promotion analytics.
     } catch (error) {
       console.error('❌ Error tracking promotion view:', error);
     }
@@ -215,7 +227,8 @@ export const usePromotions = () => {
   const trackPromotionClick = async (promotionId: string, visitorId: string) => {
     try {
       console.log('📊 Tracking promotion click:', { promotionId, visitorId });
-      // Implementation for tracking clicks
+      // The new interactions table handles clicks. This function might need re-evaluation.
+      // For now, leaving it as a placeholder or remove if not used elsewhere for promotion analytics.
     } catch (error) {
       console.error('❌ Error tracking promotion click:', error);
     }
@@ -225,14 +238,15 @@ export const usePromotions = () => {
     fetchPromotions();
 
     // Set up realtime subscription for promotions
+    // Updated schema and table name
     const channel = supabase
       .channel('promotions-realtime-hook')
       .on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public',
-          table: 'promotions'
+          schema: 'blog', // Updated schema
+          table: 'promotions' // Updated table name
         },
         (payload) => {
           console.log('📡 Realtime promotion update in hook:', payload);
@@ -241,10 +255,12 @@ export const usePromotions = () => {
             setPromotions(prev => [payload.new as Promotion, ...prev]);
           } else if (payload.eventType === 'UPDATE') {
             setPromotions(prev => prev.map(promotion => 
-              promotion.id === payload.new.id ? payload.new as Promotion : promotion
+              // Key is 'id' for promotions table
+              promotion.id === (payload.new as Promotion).id ? payload.new as Promotion : promotion
             ));
           } else if (payload.eventType === 'DELETE') {
-            setPromotions(prev => prev.filter(promotion => promotion.id !== payload.old.id));
+            // Key is 'id' for promotions table
+            setPromotions(prev => prev.filter(promotion => promotion.id !== (payload.old as Promotion).id));
           }
         }
       )
