@@ -3,15 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAnalytics } from "@/hooks/useAnalytics";
+import { useAnalytics } from "@/hooks/useAnalytics"; // useAnalytics is updated
 import { PerformanceLogger } from "@/utils/performanceLogger";
+import type { Database } from '@/integrations/supabase/types'; // New: Import Database type
 
 interface EnhancedPromotionalPopupProps {
   currentPage?: string;
 }
 
+// Define Promotion type from new schema
+type Promotion = Database['blog']['Tables']['promotions']['Row'];
+
 const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopupProps) => {
-  const [promotions, setPromotions] = useState<any[]>([]);
+  const [promotions, setPromotions] = useState<Promotion[]>([]); // Use Promotion type
   const [currentPromotionIndex, setCurrentPromotionIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
   const [hasInteracted, setHasInteracted] = useState(false);
@@ -55,8 +59,8 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
   }, []);
 
   // Simple function to check if promotion should show based on frequency
-  const shouldShowPromotion = (promotion: any) => {
-    const frequency = promotion.display_rules?.show_frequency || 'session';
+  const shouldShowPromotion = (promotion: Promotion) => { // Use Promotion type
+    const frequency = (promotion.display_rules as any)?.show_frequency || 'session';
     const storageKey = `promotion_${promotion.id}_shown_${sessionId}`;
     
     switch (frequency) {
@@ -72,8 +76,8 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
   };
 
   // Mark promotion as shown
-  const markPromotionShown = (promotion: any) => {
-    const frequency = promotion.display_rules?.show_frequency || 'session';
+  const markPromotionShown = (promotion: Promotion) => { // Use Promotion type
+    const frequency = (promotion.display_rules as any)?.show_frequency || 'session';
     const storageKey = `promotion_${promotion.id}_shown_${sessionId}`;
     
     switch (frequency) {
@@ -93,9 +97,10 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
       console.log('🔍 Loading promotions for rotation...');
       setIsLoading(true);
       
-      // Direct database query
+      // Updated table name and schema to 'blog.promotions'
+      // Updated order by 'created_at' (column name in new DB)
       const { data: promotions, error } = await supabase
-        .from('promotions')
+        .from('blog.promotions')
         .select('*')
         .eq('is_active', true)
         .order('created_at', { ascending: false });
@@ -159,14 +164,15 @@ const EnhancedPromotionalPopup = ({ currentPage = '/' }: EnhancedPromotionalPopu
   useEffect(() => {
     console.log('📡 Setting up realtime subscription for promotion rotation...');
     
+    // Updated schema and table name
     const channel = supabase
       .channel('promotional-popup-rotation-realtime')
       .on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public',
-          table: 'promotions'
+          schema: 'blog', // Updated schema
+          table: 'promotions' // Updated table name
         },
         (payload) => {
           console.log('📡 Realtime promotion update for rotation:', payload);
