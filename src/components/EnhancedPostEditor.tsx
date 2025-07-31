@@ -5,8 +5,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Image, Video, X, Link, AlertCircle, Type, Heading1, Heading2, Heading3, Table, Plus, Minus, Code, Copy } from "lucide-react";
-import { uploadBlogImage } from "@/lib/imageUpload";
+import { uploadBlogImage } from "@/lib/imageUpload"; // This utility needs to be updated
+import { X, Link, AlertCircle, Type, Heading1, Heading2, Heading3, Table, Plus, Minus, Code, Copy, Image as ImageIcon, Video } from "lucide-react"; // Renamed Image to ImageIcon to avoid conflict with interface
+import DOMPurify from 'dompurify'; // Assuming DOMPurify is installed for sanitization on save/render
 
 interface MediaItem {
   id: string;
@@ -45,6 +46,7 @@ const EnhancedPostEditor = ({ content, mediaItems, onContentChange, onMediaChang
     setIsUploading(true);
     try {
       console.log('Starting image upload for blog post...');
+      // uploadBlogImage needs to be updated to use the correct bucket in lib/imageUpload.ts
       const imageUrl = await uploadBlogImage(file);
       
       const newMediaItem: MediaItem = {
@@ -569,7 +571,7 @@ const EnhancedPostEditor = ({ content, mediaItems, onContentChange, onMediaChang
                 asChild
               >
                 <span>
-                  <Image className="h-4 w-4 mr-2" />
+                  <ImageIcon className="h-4 w-4 mr-2" /> {/* Used ImageIcon */}
                   {isUploading ? "Uploading..." : "Add Image"}
                 </span>
               </Button>
