@@ -1,5 +1,5 @@
 // Performance logging utility for debugging and monitoring
-import { safeJsonParse, safePropertyAccess } from './safeEvalAlternatives';
+import { safeJsonParse } from './safeEvalAlternatives'; // safeJsonParse is updated
 
 export class PerformanceLogger {
   private static timers: Map<string, number> = new Map();
@@ -109,6 +109,8 @@ export class ClientCache {
     
     // Safely return cached data
     try {
+      // Ensure that if stringified JSON, it's parsed back
+      // Using safeJsonParse from safeEvalAlternatives
       return typeof item.data === 'string' ? safeJsonParse(item.data) || item.data : item.data;
     } catch (error) {
       console.warn('Error retrieving cached data:', error);
