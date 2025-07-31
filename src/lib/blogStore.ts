@@ -1,22 +1,7 @@
 // Blog store types and utilities for enhanced content management
 
-export interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  content: string;
-  author: string;
-  authorId?: string;
-  category: string;
-  tags: string[];
-  imageUrl: string;
-  publishedAt: string;
-  published: boolean;
-  featured: boolean;
-  mediaItems?: MediaItem[];
-  socialHandles?: SocialHandles;
-  codeBlocks?: CodeBlock[];
-}
+// The primary BlogPost interface is now sourced from Supabase types (Database['blog']['Tables']['posts']['Row'])
+// We will keep other related interfaces and utilities here.
 
 export interface MediaItem {
   id: string;
@@ -31,6 +16,8 @@ export interface SocialHandles {
   youtube?: string;
   facebook?: string;
   telegram?: string;
+  linkedin?: string; // Included based on BlogFooter and ContactManagement
+  instagram?: string; // Included based on BlogFooter and ContactManagement
 }
 
 export interface CodeBlock {
@@ -107,6 +94,11 @@ export const codeBlockUtils = {
   // Extract code blocks from HTML content
   extractCodeBlocks: (htmlContent: string): CodeBlock[] => {
     const codeBlocks: CodeBlock[] = [];
+    // Ensure DOMParser is available in the environment (e.g., browser)
+    if (typeof DOMParser === 'undefined') {
+      console.warn('DOMParser not available, cannot extract code blocks.');
+      return [];
+    }
     const parser = new DOMParser();
     const doc = parser.parseFromString(htmlContent, 'text/html');
     const codeContainers = doc.querySelectorAll('.code-block-container');
@@ -117,7 +109,7 @@ export const codeBlockUtils = {
       const codeId = container.getAttribute('data-code-id');
 
       if (languageElement && codeElement && codeId) {
-        const language = languageElement.className.split(' ').find(cls => cls !== 'code-language') || 'plaintext';
+        const language = Array.from(languageElement.classList).find(cls => cls !== 'code-language') || 'plaintext'; // New: use Array.from for classList
         const code = codeElement.textContent || '';
         
         codeBlocks.push({
