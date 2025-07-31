@@ -1,4 +1,3 @@
-
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ExternalLink } from "lucide-react";
@@ -37,13 +36,19 @@ const YouTubeModal = ({ isOpen, onClose, videoUrl, title }: YouTubeModalProps) =
         </DialogHeader>
         
         <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
-          <iframe
-            src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
-            title={title || "YouTube video"}
-            className="absolute top-0 left-0 w-full h-full rounded-lg"
-            allowFullScreen
-            allow="autoplay; encrypted-media"
-          />
+          {videoId ? ( // Only render iframe if videoId is found
+            <iframe
+              src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+              title={title || "YouTube video"}
+              className="absolute top-0 left-0 w-full h-full rounded-lg"
+              allowFullScreen
+              allow="autoplay; encrypted-media"
+            />
+          ) : (
+            <div className="absolute top-0 left-0 w-full h-full rounded-lg bg-gray-200 flex items-center justify-center text-gray-500">
+              <p>Invalid YouTube URL</p>
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>
