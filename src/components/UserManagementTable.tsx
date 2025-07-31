@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { useUserManagement } from "@/hooks/useUserManagement";
-import { useAuth } from "@/contexts/AuthContext";
-import { Users, Edit, Trash2, UserX, UserCheck, Shield, Tag, Mail, Calendar, RefreshCw } from "lucide-react";
+import { useUserManagement } from "@/hooks/useUserManagement"; // useUserManagement is already updated
+import { useAuth } from "@/contexts/AuthContext"; // useAuth is already updated
+import { Users, Edit, Trash2, UserX, UserCheck, Shield, Tag, Mail, Calendar, RefreshCw, Star } from "lucide-react"; // Added Star
 
 const categories = [
   "Technology",
@@ -28,21 +28,25 @@ const categories = [
 
 const UserManagementTable = () => {
   const { users, loading, updateUser, deleteUser, suspendUser, refetch } = useUserManagement();
-  const { profile: currentUserProfile } = useAuth();
+  const { profile: currentUserProfile } = useAuth(); // currentUserProfile now matches blog.user_profiles
   const [editingUser, setEditingUser] = useState<any>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editFormData, setEditFormData] = useState({
+    username: "", // New: Added username
     display_name: "",
     specialized_category: "",
     is_admin: false,
+    is_creator: false, // New: Added is_creator
     is_suspended: false
   });
 
-  const handleEdit = (user: any) => {
+  const handleEdit = (user: any) => { // user object now matches blog.user_profiles
     setEditFormData({
+      username: user.username || "", // New: Set username
       display_name: user.display_name || "",
       specialized_category: user.specialized_category || "",
       is_admin: user.is_admin || false,
+      is_creator: user.is_creator || false, // New: Set is_creator
       is_suspended: user.is_suspended || false
     });
     setEditingUser(user);
@@ -50,10 +54,12 @@ const UserManagementTable = () => {
   };
 
   const handleUpdateUser = async () => {
-    if (!editingUser) return;
+    // Key is now user_id
+    if (!editingUser || !editingUser.user_id) return;
 
     try {
-      await updateUser(editingUser.id, editFormData);
+      // Pass user_id
+      await updateUser(editingUser.user_id, editFormData); 
       setIsEditDialogOpen(false);
       setEditingUser(null);
     } catch (error) {
@@ -83,11 +89,12 @@ const UserManagementTable = () => {
   const getUserStats = () => {
     const totalUsers = users.length;
     const adminUsers = users.filter(u => u.is_admin).length;
-    const regularUsers = users.filter(u => !u.is_admin).length;
+    const creatorUsers = users.filter(u => u.is_creator && !u.is_admin).length; // New: count creators who are not admins
+    const regularUsers = users.filter(u => !u.is_admin && !u.is_creator).length; // New: count regular users
     const suspendedUsers = users.filter(u => u.is_suspended).length;
     const activeUsers = users.filter(u => !u.is_suspended).length;
 
-    return { totalUsers, adminUsers, regularUsers, suspendedUsers, activeUsers };
+    return { totalUsers, adminUsers, creatorUsers, regularUsers, suspendedUsers, activeUsers };
   };
 
   const stats = getUserStats();
@@ -137,10 +144,10 @@ const UserManagementTable = () => {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Team Members</p>
-                <p className="text-2xl font-bold">{stats.regularUsers}</p>
+                <p className="text-sm text-gray-600">Content Creators</p> {/* New: Added creators stat */}
+                <p className="text-2xl font-bold">{stats.creatorUsers}</p>
               </div>
-              <Users className="h-8 w-8 text-green-600" />
+              <Star className="h-8 w-8 text-yellow-600" />
             </div>
           </CardContent>
         </Card>
@@ -223,19 +230,19 @@ const UserManagementTable = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {users.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
+                    <tr key={user.user_id} className="hover:bg-gray-50"> {/* Key is now user_id */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10">
                             <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
                               <span className="text-sm font-medium text-blue-600">
-                                {user.display_name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
+                                {user.display_name?.charAt(0)?.toUpperCase() || user.username?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
                               </span>
                             </div>
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">
-                              {user.display_name || 'No name'}
+                              {user.display_name || user.username || 'No name'} {/* Display username too */}
                             </div>
                             <div className="text-sm text-gray-500 flex items-center gap-1">
                               <Mail className="h-3 w-3" />
@@ -245,10 +252,21 @@ const UserManagementTable = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <Badge variant={user.is_admin ? "default" : "secondary"} className="flex items-center gap-1">
-                          {user.is_admin && <Shield className="h-3 w-3" />}
-                          {user.is_admin ? "Super Admin" : "Team Member"}
-                        </Badge>
+                        {user.is_admin ? (
+                          <Badge variant="default" className="flex items-center gap-1">
+                            <Shield className="h-3 w-3" />
+                            Super Admin
+                          </Badge>
+                        ) : user.is_creator ? (
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <Star className="h-3 w-3 text-yellow-400" />
+                            Content Creator
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="flex items-center gap-1">
+                            Team Member
+                          </Badge>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {user.specialized_category ? (
@@ -273,7 +291,7 @@ const UserManagementTable = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         {/* Prevent self-modification */}
-                        {user.id !== currentUserProfile?.id && (
+                        {user.user_id !== currentUserProfile?.user_id && ( {/* Check user_id */}
                           <>
                             <Button
                               size="sm"
@@ -288,7 +306,7 @@ const UserManagementTable = () => {
                             <Button
                               size="sm"
                               variant={user.is_suspended ? "default" : "outline"}
-                              onClick={() => handleSuspendUser(user.id, !user.is_suspended)}
+                              onClick={() => handleSuspendUser(user.user_id, !user.is_suspended)} {/* Pass user_id */}
                               className="inline-flex items-center gap-1"
                             >
                               {user.is_suspended ? (
@@ -307,7 +325,7 @@ const UserManagementTable = () => {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => handleDeleteUser(user.id, user.email || 'Unknown')}
+                              onClick={() => handleDeleteUser(user.user_id, user.email || 'Unknown')} {/* Pass user_id */}
                               className="inline-flex items-center gap-1"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -316,7 +334,7 @@ const UserManagementTable = () => {
                           </>
                         )}
                         
-                        {user.id === currentUserProfile?.id && (
+                        {user.user_id === currentUserProfile?.user_id && ( {/* Check user_id */}
                           <Badge variant="outline" className="text-xs">
                             You
                           </Badge>
@@ -335,9 +353,18 @@ const UserManagementTable = () => {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit User: {editingUser?.display_name || editingUser?.email}</DialogTitle>
+            <DialogTitle>Edit User: {editingUser?.display_name || editingUser?.username || editingUser?.email}</DialogTitle> {/* Display username */}
           </DialogHeader>
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit-username">Username</Label> {/* New: Username field */}
+              <Input
+                id="edit-username"
+                value={editFormData.username}
+                onChange={(e) => setEditFormData(prev => ({ ...prev, username: e.target.value }))}
+                placeholder="Enter username"
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="edit-display-name">Display Name</Label>
               <Input
@@ -377,6 +404,18 @@ const UserManagementTable = () => {
                 <Label htmlFor="edit-is-admin" className="flex items-center gap-2">
                   <Shield className="h-4 w-4" />
                   Super Admin Access
+                </Label>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-is-creator" {/* New: is_creator switch */}
+                  checked={editFormData.is_creator}
+                  onCheckedChange={(checked) => setEditFormData(prev => ({ ...prev, is_creator: checked }))}
+                />
+                <Label htmlFor="edit-is-creator" className="flex items-center gap-2">
+                  <Star className="h-4 w-4 text-yellow-500" />
+                  Content Creator
                 </Label>
               </div>
 
