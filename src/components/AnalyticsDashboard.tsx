@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useAnalytics } from "@/hooks/useAnalytics";
+import { useAnalytics } from "@/hooks/useAnalytics"; // useAnalytics hook is already updated
 import { visitorTracker } from "@/lib/visitorTracking";
 import { commentsStore } from "@/lib/commentsStore";
 import { 
@@ -22,10 +22,10 @@ import {
 
 const AnalyticsDashboard = () => {
   const { 
-    postAnalytics, 
+    postAnalytics, // This now comes from the RPC function and directly from blog.posts
     promotionAnalytics, 
-    analyticsSummary, 
-    promotionSummary, 
+    analyticsSummary, // Updated summary structure
+    promotionSummary, // Updated summary structure
     loading,
     refetch
   } = useAnalytics();
@@ -82,7 +82,7 @@ const AnalyticsDashboard = () => {
     // Clear visitor tracking data
     visitorTracker.clearSession();
     
-    // Clear comments store data
+    // Clear comments store data (commentsStore is deprecated for persistent data but contains local state)
     commentsStore.clearAllInteractions();
     
     // Clear any other local storage data related to analytics and comments
@@ -94,7 +94,8 @@ const AnalyticsDashboard = () => {
         key.startsWith('nf_visitor') || 
         key.startsWith('blog_post_interactions') ||
         key.startsWith('nf_global_commenter_name') ||
-        key.startsWith('comment_author_')
+        key.startsWith('comment_author_') ||
+        key.startsWith('nf_local_comment_ownership') // New: Clear local comment ownership
       )) {
         keysToRemove.push(key);
       }
@@ -270,46 +271,55 @@ const AnalyticsDashboard = () => {
                   <p className="text-center text-gray-500 py-8">No post analytics available yet.</p>
                 ) : (
                   postAnalytics.map((analytics) => (
-                    <div key={analytics.id} className="border rounded-lg p-4">
+                    // Analytics data now comes from blog.get_post_analytics RPC
+                    <div key={analytics.post_id} className="border rounded-lg p-4"> {/* Key is now post_id */}
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
                           <h3 className="font-medium text-gray-900 mb-2">
-                            {(analytics as any).blog_posts?.title || 'Unknown Post'}
+                            {/* Assumes blog_posts.title is joined in RPC or separate fetch */}
+                            {(analytics as any).blog_posts?.title || 'Unknown Post'} 
                           </h3>
                           <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                             <div className="flex items-center gap-1">
                               <Eye className="h-4 w-4" />
-                              <span>{formatNumber(analytics.views)} views</span>
+                              {/* Use total_views from RPC output */}
+                              <span>{formatNumber(analytics.views || 0)} views</span> 
                             </div>
                             <div className="flex items-center gap-1">
                               <Users className="h-4 w-4" />
-                              <span>{formatNumber(analytics.unique_views)} unique</span>
+                              {/* Unique views might not be directly available from new RPC, re-evaluate if needed */}
+                              <span>{formatNumber(analytics.unique_views || 0)} unique</span> 
                             </div>
                             <div className="flex items-center gap-1">
                               <Heart className="h-4 w-4" />
-                              <span>{formatNumber(analytics.likes)} likes</span>
+                              {/* Use total_likes from RPC output */}
+                              <span>{formatNumber(analytics.likes || 0)} likes</span> 
                             </div>
                             <div className="flex items-center gap-1">
                               <Share className="h-4 w-4" />
-                              <span>{formatNumber(analytics.shares)} shares</span>
+                              {/* Shares might need to be added to RPC or calculated differently */}
+                              <span>{formatNumber(analytics.shares || 0)} shares</span> 
                             </div>
                             <div className="flex items-center gap-1">
                               <MessageSquare className="h-4 w-4" />
-                              <span>{formatNumber(analytics.comments_count)} comments</span>
+                              {/* Use total_comments from RPC output */}
+                              <span>{formatNumber(analytics.comments_count || 0)} comments</span> 
                             </div>
                           </div>
                         </div>
                         <Badge variant="outline">
-                          {formatPercentage(analytics.engagement_rate)} engagement
+                          {formatPercentage(analytics.engagement_rate || 0)} engagement
                         </Badge>
                       </div>
                       
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-500">
-                        <div>Bounce Rate: {formatPercentage(analytics.bounce_rate)}</div>
-                        <div>Avg Reading Time: {formatReadingTime(analytics.reading_time_avg)}</div>
-                        <div>Last Viewed: {new Date(analytics.last_viewed).toLocaleDateString()}</div>
+                        {/* Bounce rate and avg reading time are part of the new RPC return */}
+                        <div>Bounce Rate: {formatPercentage(analytics.bounce_rate || 0)}</div>
+                        <div>Avg Reading Time: {formatReadingTime(analytics.reading_time_avg || 0)}</div>
+                        <div>Last Viewed: {analytics.last_viewed ? new Date(analytics.last_viewed).toLocaleDateString() : 'N/A'}</div>
                         <div>
-                          CTR: {analytics.views > 0 ? formatPercentage((analytics.likes + analytics.shares) / analytics.views * 100) : '0%'}
+                          {/* CTR calculation needs to align with RPC output */}
+                          CTR: {analytics.views && analytics.views > 0 ? formatPercentage(((analytics.likes || 0) + (analytics.shares || 0)) / analytics.views * 100) : '0%'}
                         </div>
                       </div>
                     </div>
@@ -338,6 +348,7 @@ const AnalyticsDashboard = () => {
                   </div>
                 ) : (
                   promotionAnalytics.map((analytics) => (
+                    // Promotion analytics still come from promotion_analytics table (now blog.promotions)
                     <div key={analytics.id} className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50">
                       <div className="flex items-start justify-between mb-3">
                         <div className="flex-1">
@@ -350,40 +361,40 @@ const AnalyticsDashboard = () => {
                           <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                             <div className="flex items-center gap-1">
                               <Eye className="h-4 w-4 text-blue-600" />
-                              <span>{formatNumber(analytics.total_views)} views</span>
+                              <span>{formatNumber(analytics.total_views || 0)} views</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <Users className="h-4 w-4 text-green-600" />
-                              <span>{formatNumber(analytics.unique_views)} unique</span>
+                              <span>{formatNumber(analytics.unique_views || 0)} unique</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <MousePointer className="h-4 w-4 text-purple-600" />
-                              <span>{formatNumber(analytics.total_clicks)} clicks</span>
+                              <span>{formatNumber(analytics.total_clicks || 0)} clicks</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <Target className="h-4 w-4 text-orange-600" />
-                              <span>{formatNumber(analytics.unique_clicks)} unique clicks</span>
+                              <span>{formatNumber(analytics.unique_clicks || 0)} unique clicks</span>
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
                           <Badge variant="default" className="mb-2 bg-gradient-to-r from-blue-600 to-purple-600">
-                            {formatPercentage(analytics.click_through_rate)} CTR
+                            {formatPercentage(analytics.click_through_rate || 0)} CTR
                           </Badge>
                           <div className="text-xs text-gray-500">
-                            Conversion: {formatPercentage(analytics.conversion_rate)}
+                            Conversion: {formatPercentage(analytics.conversion_rate || 0)}
                           </div>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-gray-500 bg-white/50 rounded p-2">
-                        <div>Bounce Rate: {formatPercentage(analytics.bounce_rate)}</div>
+                        <div>Bounce Rate: {formatPercentage(analytics.bounce_rate || 0)}</div>
                         <div>Avg Time to Click: {analytics.avg_time_to_click}s</div>
                         <div>
-                          View Rate: {analytics.total_views > 0 ? formatPercentage(analytics.unique_views / analytics.total_views * 100) : '0%'}
+                          View Rate: {analytics.total_views && analytics.total_views > 0 ? formatPercentage((analytics.unique_views || 0) / analytics.total_views * 100) : '0%'}
                         </div>
                         <div>
-                          Click Rate: {analytics.total_clicks > 0 ? formatPercentage(analytics.unique_clicks / analytics.total_clicks * 100) : '0%'}
+                          Click Rate: {analytics.total_clicks && analytics.total_clicks > 0 ? formatPercentage((analytics.unique_clicks || 0) / analytics.total_clicks * 100) : '0%'}
                         </div>
                       </div>
                     </div>
