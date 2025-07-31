@@ -9,7 +9,7 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      [_ in never]: never // Public schema is mostly empty now if everything is in 'blog'
+      [_ in never]: never // Public schema is empty as all app tables are in 'blog'
     }
     Views: {
       [_ in never]: never
@@ -41,7 +41,7 @@ export interface Database {
           is_suspended: boolean | null
           last_login: string | null
           created_at: string | null
-          modified_at: string | null // Renamed from updated_at
+          modified_at: string | null
         }
         Insert: {
           user_id: string
@@ -87,16 +87,16 @@ export interface Database {
           featured_image_url: string | null
           category: string | null
           tags: string[] | null
-          reading_time_minutes: number | null // Renamed from reading_time
+          reading_time_minutes: number | null
           is_published: boolean | null
           published_at: string | null
           meta_title: string | null
           meta_description: string | null
-          views_count: number | null // New/Renamed from post_analytics
-          likes_count: number | null // New/Renamed from post_analytics/post_likes
-          comments_count: number | null // New/Renamed from post_analytics
+          views_count: number | null
+          likes_count: number | null
+          comments_count: number | null
           created_at: string | null
-          modified_at: string | null // Renamed from updated_at
+          modified_at: string | null
         }
         Insert: {
           post_id?: string
@@ -151,7 +151,7 @@ export interface Database {
           is_approved: boolean | null
           is_deleted: boolean | null
           created_at: string | null
-          modified_at: string | null // Renamed from updated_at
+          modified_at: string | null
         }
         Insert: {
           comment_id?: string
@@ -181,17 +181,17 @@ export interface Database {
           interaction_id: string
           user_id: string | null
           post_id: string | null
-          is_liked: boolean | null
-          is_bookmarked: boolean | null
+          interaction_type: string
+          visitor_id: string | null
           created_at: string | null
-          modified_at: string | null // Renamed from updated_at
+          modified_at: string | null
         }
         Insert: {
           interaction_id?: string
           user_id?: string | null
           post_id?: string | null
-          is_liked?: boolean | null
-          is_bookmarked?: boolean | null
+          interaction_type: string
+          visitor_id?: string | null
           created_at?: string | null
           modified_at?: string | null
         }
@@ -199,17 +199,13 @@ export interface Database {
           interaction_id?: string
           user_id?: string | null
           post_id?: string | null
-          is_liked?: boolean | null
-          is_bookmarked?: boolean | null
+          interaction_type?: string
+          visitor_id?: string | null
           created_at?: string | null
           modified_at?: string | null
         }
       }
-      -- Assuming promotions and contact_settings are still in 'public' for now based on your old types,
-      -- but if they are moved to 'blog', their definitions will need to be added here.
-      -- For consistency with new schema, it would be logical to move them to 'blog'.
-      -- If they are meant to be in 'blog', I will adjust them in the next steps.
-      promotions: {
+      promotions: { // Moved to 'blog' schema for consistency
         Row: {
           id: string
           title: string
@@ -220,7 +216,7 @@ export interface Database {
           is_active: boolean | null
           display_rules: Json | null
           created_at: string | null
-          updated_at: string | null
+          modified_at: string | null // Renamed for consistency
         }
         Insert: {
           id?: string
@@ -232,7 +228,7 @@ export interface Database {
           is_active?: boolean | null
           display_rules?: Json | null
           created_at?: string | null
-          updated_at?: string | null
+          modified_at?: string | null
         }
         Update: {
           id?: string
@@ -244,10 +240,10 @@ export interface Database {
           is_active?: boolean | null
           display_rules?: Json | null
           created_at?: string | null
-          updated_at?: string | null
+          modified_at?: string | null
         }
       }
-      contact_settings: {
+      contact_settings: { // Moved to 'blog' schema for consistency
         Row: {
           id: string
           email: string | null
@@ -257,7 +253,7 @@ export interface Database {
           description: string | null
           social_media: Json | null
           created_at: string | null
-          updated_at: string | null
+          modified_at: string | null // Renamed for consistency
         }
         Insert: {
           id?: string
@@ -268,7 +264,7 @@ export interface Database {
           description?: string | null
           social_media?: Json | null
           created_at?: string | null
-          updated_at?: string | null
+          modified_at?: string | null
         }
         Update: {
           id?: string
@@ -279,10 +275,10 @@ export interface Database {
           description?: string | null
           social_media?: Json | null
           created_at?: string | null
-          updated_at?: string | null
+          modified_at?: string | null
         }
       }
-      about_us_sections: {
+      about_us_sections: { // Moved to 'blog' schema for consistency
         Row: {
           id: string
           title: string
@@ -292,7 +288,7 @@ export interface Database {
           is_active: boolean
           metadata: Json | null
           created_at: string | null
-          updated_at: string | null
+          modified_at: string | null // Renamed for consistency
         }
         Insert: {
           id?: string
@@ -303,7 +299,7 @@ export interface Database {
           is_active?: boolean
           metadata?: Json | null
           created_at?: string | null
-          updated_at?: string | null
+          modified_at?: string | null
         }
         Update: {
           id?: string
@@ -314,7 +310,7 @@ export interface Database {
           is_active?: boolean
           metadata?: Json | null
           created_at?: string | null
-          updated_at?: string | null
+          modified_at?: string | null
         }
       }
     }
