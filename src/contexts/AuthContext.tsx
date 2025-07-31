@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import type { User } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 
-type Profile = Database['public']['Tables']['profiles']['Row'];
+// Updated Profile type to match the new 'blog.user_profiles' table
+type Profile = Database['blog']['Tables']['user_profiles']['Row'];
 
 interface AuthContextType {
   user: User | null;
@@ -23,23 +24,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  // Simplified profile fetching without recursion
+  // New: Simplified profile fetching to align with 'blog.user_profiles' table and 'user_id'
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
     try {
       console.log('Fetching profile for user:', userId);
       
-      // First try to fetch with regular auth context
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles') // Updated table name and schema
         .select('*')
-        .eq('id', userId)
+        .eq('user_id', userId) // Updated column name
         .single();
 
       if (error) {
-        // If we get a recursion error or no profile found, try to create one
-        if (error.code === '42P17' || error.code === 'PGRST116') {
-          console.log('Profile fetch failed, attempting to create profile...');
-          return await createProfile(userId);
+        // If profile not found, it might be a new user where handle_new_user hasn't run yet,
+        // or a manual user where profile wasn't created.
+        if (error.code === 'PGRST116') { // No rows returned
+          console.warn('No profile found for user, attempting to create default profile:', userId);
+          return await createDefaultProfile(userId); // Attempt to create a default profile
         }
         console.error('Error fetching profile:', error);
         throw error;
@@ -49,45 +50,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return data;
     } catch (error) {
       console.error('Error in fetchProfile:', error);
-      // If all else fails, try to create a profile
-      return await createProfile(userId);
+      return null;
     }
   };
 
-  // Create profile for new user
-  const createProfile = async (userId: string, specializedCategory?: string): Promise<Profile | null> => {
+  // New: Create default profile for new user if handle_new_user didn't set all metadata
+  const createDefaultProfile = async (userId: string): Promise<Profile | null> => {
     try {
-      console.log('Creating profile for user:', userId);
-      
-      // Get user email from auth
+      console.log('Creating default profile for user (fallback):', userId);
       const { data: { user: authUser } } = await supabase.auth.getUser();
       
       if (!authUser) {
-        throw new Error('No authenticated user found');
+        throw new Error('No authenticated user found for profile creation.');
       }
 
+      const defaultUsername = authUser.email ? authUser.email.split('@')[0] : 'user';
+      
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles') // Updated table name and schema
         .insert({
-          id: userId,
-          email: authUser.email,
-          display_name: authUser.user_metadata?.display_name || authUser.email?.split('@')[0] || 'User',
+          user_id: userId, // Updated column name
+          email: authUser.email || '',
+          username: defaultUsername, // New: Set a default username
+          display_name: authUser.user_metadata?.display_name || defaultUsername,
           is_admin: false,
-          specialized_category: specializedCategory || null,
+          is_creator: false,
           is_suspended: false
         })
         .select()
         .single();
 
       if (error) {
-        console.error('Error creating profile:', error);
+        // Handle unique constraint violation if profile already exists (e.g., from handle_new_user trigger)
+        if (error.code === '23505') { 
+          console.warn('Default profile creation skipped: profile already exists (likely from trigger). Fetching existing profile.');
+          return await fetchProfile(userId); // Fetch the existing one if conflict
+        }
+        console.error('Error creating default profile:', error);
         return null;
       }
 
-      console.log('Profile created successfully:', data);
+      console.log('Default profile created successfully:', data);
       return data;
     } catch (error) {
-      console.error('Error creating profile:', error);
+      console.error('Error creating default profile:', error);
       return null;
     }
   };
@@ -100,7 +106,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         console.log('Initializing auth...');
         
-        // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
         
         if (error) {
@@ -109,7 +114,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('Session found for user:', session.user.email);
           setUser(session.user);
           
-          // Fetch profile without blocking
           fetchProfile(session.user.id).then(userProfile => {
             if (mounted) {
               setProfile(userProfile);
@@ -138,7 +142,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (session?.user) {
           setUser(session.user);
-          // Fetch profile asynchronously
           fetchProfile(session.user.id).then(userProfile => {
             if (mounted) {
               setProfile(userProfile);
@@ -178,7 +181,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.log('Sign in successful for user:', data.user.email);
         setUser(data.user);
         
-        // Fetch profile asynchronously - don't block the sign in
         fetchProfile(data.user.id).then(userProfile => {
           setProfile(userProfile);
           
@@ -248,9 +250,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('Updating profile:', updates);
       
       const { data, error } = await supabase
-        .from('profiles')
+        .from('blog.user_profiles') // Updated table name and schema
         .update(updates)
-        .eq('id', user.id)
+        .eq('user_id', user.id) // Updated column name
         .select()
         .single();
 
