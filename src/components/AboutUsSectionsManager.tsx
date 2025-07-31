@@ -8,7 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useAboutUsSections } from "@/hooks/useAboutUsSections";
+import { useAboutUsSections } from "@/hooks/useAboutUsSections"; // useAboutUsSections is updated
 import { Plus, Edit, Trash2, Save, X, GripVertical, RefreshCw, FileText, Image, AlertCircle, Monitor, Target, Users, Shield, BookOpen, Lightbulb, Award, Heart, Globe, Zap, Code, Briefcase, Mail, Phone, MapPin, Star, CheckCircle, TrendingUp, Layers, Settings, Database, Lock, Wifi, Smartphone, Laptop, Server, Cloud, Search, Eye, MessageSquare, ThumbsUp, Share2, Download, Upload, Play, Pause, Volume2, Camera, Video, Mic, Headphones, Calendar, Clock, Bell, Flag, Home, Building, Car, Plane, Train, Bike, Coffee, Pizza, Gift, Music, Gamepad2, Palette, Brush, Scissors, Wrench, Hammer, HardDrive as Screwdriver, Key, Compass, Map, Navigation, Anchor, Rocket, Satellite, Sun, Moon, CloudRain, Snowflake, Thermometer, Umbrella, Flower, Trees as Tree, Leaf, Mountain, Waves, Siren as Fire, Droplets, Wind, Rainbow, Sparkles, Gem, Crown, Trophy, Medal, Ribbon, Ticket, Tag, Package, ShoppingCart, CreditCard, DollarSign, PiggyBank, TrendingDown, BarChart, PieChart, Activity, HeartPulse as Pulse, Zap as Lightning, Battery, Plug, Radio, Tv, Speaker, Headset, Printer, Scan as Scanner, Fan as Fax, HardDrive, Usb, Bluetooth, Rss, AtSign, Hash, Percent, Plus as PlusIcon, Minus, Equal, Divide, X as XIcon, Check, CheckSquare, Square, Circle, Triangle, Hexagon, Octagon, Diamond, Heart as HeartIcon, Star as StarIcon, Bookmark, Paperclip, Link, Unlink, Copy, Nut as Cut, Cast as Paste, Undo, Redo, RotateCcw, RotateCw, Repeat, Shuffle, SkipBack, SkipForward, FastForward, Rewind, StepBack, StepForward, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, ChevronsLeft, ChevronsRight, ChevronsUp, ChevronsDown, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, ArrowUpLeft, ArrowUpRight, ArrowDownLeft, ArrowDownRight, CornerUpLeft, CornerUpRight, CornerDownLeft, CornerDownRight, ExternalLink, Maximize, Minimize, Move, MoreHorizontal, MoreVertical, Menu, Grid, List, Columns, Rows, Layout, Sidebar, PanelLeft, PanelRight, PanelTop, PanelBottom, Fullscreen, Minimize2, Maximize2, ZoomIn, ZoomOut, Focus, Crosshair, MousePointer, Hand, Grab, GripHorizontal, AlignLeft, AlignCenter, AlignRight, AlignJustify, Bold, Italic, Underline, Strikethrough, Subscript, Superscript, Type, Heading, Quote, Code2, Terminal, Command, Option, Gift as Shift, TowerControl as Control, Bolt as Alt, Space, Pointer as Enter, Backpack as Backspace, Delete, Table as Tab, Lock as CapsLock, Lock as NumLock, Scroll as ScrollLock, Dessert as Insert, ImageUp as PageUp, ImageDown as PageDown, ListEnd as End, Grape as Escape, AArrowDown as F1, AArrowDown as F2, AArrowDown as F3, AArrowDown as F4, AArrowDown as F5, AArrowDown as F6, AArrowDown as F7, AArrowDown as F8, AArrowDown as F9, Clock10 as F10, Clock11 as F11, Clock12 as F12 } from "lucide-react";
 
 const sectionTypes = [
@@ -21,7 +21,7 @@ const sectionTypes = [
   { value: 'general', label: 'General Content' }
 ];
 
-// Comprehensive icon library with categories
+// Comprehensive icon library with categories (kept as is)
 const iconLibrary = {
   business: [
     { name: 'Target', icon: Target, svg: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>' },
@@ -138,7 +138,8 @@ const AboutUsSectionsManager = () => {
 
     try {
       if (editingSection) {
-        await updateSection(editingSection, formData);
+        // Updated: pass modified_at timestamp
+        await updateSection(editingSection, { ...formData, modified_at: new Date().toISOString() });
       } else {
         // Set display order to be last if creating new
         const maxOrder = Math.max(...sections.map(s => s.display_order), 0);
@@ -498,10 +499,11 @@ const AboutUsSectionsManager = () => {
                         )}
                         
                         <div className="text-xs text-gray-500">
+                          {/* New: Use modified_at for display if available */}
                           Created: {new Date(section.created_at!).toLocaleDateString()}
-                          {section.updated_at !== section.created_at && (
+                          {section.modified_at && section.modified_at !== section.created_at && (
                             <span className="ml-2">
-                              • Updated: {new Date(section.updated_at!).toLocaleDateString()}
+                              • Updated: {new Date(section.modified_at!).toLocaleDateString()}
                             </span>
                           )}
                         </div>
