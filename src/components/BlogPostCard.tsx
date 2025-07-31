@@ -1,17 +1,19 @@
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import type { Database } from '@/integrations/supabase/types'; // New: Import Database type
 
+// Updated BlogPost interface to match the structure passed from useBlogPosts/Index
 interface BlogPost {
-  id: string;
+  id: string; // Mapped from post_id for component's internal use
   title: string;
   excerpt: string | null;
-  author_name: string | null;
+  author_name: string | null; // This is a joined field
   published_at: string | null;
-  created_at: string | null;
+  created_at: string | null; // New: added created_at for fallback date
   category: string | null;
   tags: string[] | null;
-  image_url: string | null;
+  image_url: string | null; // Mapped from featured_image_url
 }
 
 interface BlogPostCardProps {
@@ -40,7 +42,7 @@ const BlogPostCard = ({ post }: BlogPostCardProps) => {
       <Link to={`/post/${post.id}`} className="block">
         <div className="aspect-video w-full overflow-hidden rounded-t-lg">
           <img 
-            src={post.image_url || defaultImage} 
+            src={post.image_url || defaultImage} // Use mapped image_url
             alt={post.title}
             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
             onError={(e) => {
@@ -57,7 +59,7 @@ const BlogPostCard = ({ post }: BlogPostCardProps) => {
             {post.category || "General"}
           </Badge>
           <span className="text-xs text-gray-500">
-            {formatDate(post.published_at || post.created_at)}
+            {formatDate(post.published_at || post.created_at)} {/* Use published_at or created_at */}
           </span>
         </div>
         <Link to={`/post/${post.id}`}>
