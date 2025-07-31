@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import type { Database } from '@/integrations/supabase/types';
 
+// Updated ContactSettings type to match the new 'blog.contact_settings' table
 export interface ContactSettings {
   id?: string;
   email: string;
@@ -16,7 +18,7 @@ export interface ContactSettings {
     instagram?: string;
   };
   created_at?: string;
-  updated_at?: string;
+  modified_at?: string; // Updated from updated_at
 }
 
 export const useContactSettings = () => {
@@ -28,8 +30,10 @@ export const useContactSettings = () => {
     try {
       console.log('Fetching contact settings from database...');
       
+      // Updated table name and schema to 'blog.contact_settings'
+      // Updated order by 'created_at' (column name in new DB)
       const { data, error } = await supabase
-        .from('contact_settings')
+        .from('blog.contact_settings')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -76,8 +80,9 @@ export const useContactSettings = () => {
       console.log('Updating contact settings:', updates);
 
       // Check if settings exist
+      // Updated table name and schema to 'blog.contact_settings'
       const { data: existing } = await supabase
-        .from('contact_settings')
+        .from('blog.contact_settings')
         .select('id')
         .limit(1)
         .maybeSingle();
@@ -86,16 +91,19 @@ export const useContactSettings = () => {
       
       if (existing) {
         // Update existing settings
+        // Updated table name and schema to 'blog.contact_settings'
+        // Updated timestamp column to 'modified_at'
         result = await supabase
-          .from('contact_settings')
-          .update(updates)
+          .from('blog.contact_settings')
+          .update({ ...updates, modified_at: new Date().toISOString() })
           .eq('id', existing.id)
           .select()
           .single();
       } else {
         // Create new settings
+        // Updated table name and schema to 'blog.contact_settings'
         result = await supabase
-          .from('contact_settings')
+          .from('blog.contact_settings')
           .insert(updates)
           .select()
           .single();
@@ -129,14 +137,15 @@ export const useContactSettings = () => {
     fetchContactSettings();
 
     // Set up realtime subscription for contact settings
+    // Updated schema and table name
     const channel = supabase
       .channel('contact-settings-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public',
-          table: 'contact_settings'
+          schema: 'blog', // Updated schema
+          table: 'contact_settings' // Updated table name
         },
         (payload) => {
           console.log('Realtime update for contact settings:', payload);
