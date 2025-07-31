@@ -11,7 +11,8 @@ import { Lock, Shield, Eye, EyeOff } from "lucide-react";
 const SecureAdmin = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, user, loading: authLoading } = useAuth();
+  // useAuth now provides `profile` object matching `blog.user_profiles`
+  const { signIn, user, loading: authLoading, profile } = useAuth(); 
   const [credentials, setCredentials] = useState({
     email: "",
     password: ""
@@ -19,13 +20,28 @@ const SecureAdmin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in and is admin
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('User already logged in, redirecting to admin...');
-      navigate("/admin");
+    if (!authLoading) {
+      if (user) {
+        // If user is logged in, and profile is loaded, check if they are an admin
+        if (profile && profile.is_admin) { // New: Check profile.is_admin for redirection
+          console.log('User already logged in and is admin, redirecting to admin dashboard...');
+          navigate("/admin");
+        } else if (profile && !profile.is_admin) {
+          // If logged in but not admin, redirect to regular login or show message
+          console.log('User logged in but is not an admin, redirecting to regular login...');
+          toast({
+            title: "Access Denied",
+            description: "You do not have administrative privileges.",
+            variant: "destructive",
+          });
+          navigate("/login", { replace: true }); // Redirect to regular login
+        }
+        // If profile is still loading for user, wait (handled by ProtectedRoute logic implicitly)
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, profile, navigate, toast]); // Added profile and toast to dependencies
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +62,8 @@ const SecureAdmin = () => {
       
       await signIn(credentials.email.trim(), credentials.password);
       
-      // Navigation will happen via useEffect when user state updates
-      console.log('Login successful, user state will update and trigger navigation');
+      // Navigation will happen via useEffect when user/profile state updates
+      console.log('Login successful, user/profile state will update and trigger navigation');
       
     } catch (error: any) {
       console.error('Login failed:', error);
@@ -165,6 +181,7 @@ const SecureAdmin = () => {
               <p>Auth Loading: {authLoading ? 'Yes' : 'No'}</p>
               <p>Form Loading: {loading ? 'Yes' : 'No'}</p>
               <p>User: {user ? user.email : 'None'}</p>
+              <p>Profile Admin: {profile?.is_admin ? 'Yes' : 'No'}</p> {/* New: Display profile admin status */}
               <p>Email: {credentials.email}</p>
             </div>
           )}
