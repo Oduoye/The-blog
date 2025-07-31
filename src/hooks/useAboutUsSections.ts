@@ -3,9 +3,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/types';
 
-type AboutUsSection = Database['public']['Tables']['about_us_sections']['Row'];
-type AboutUsSectionInsert = Database['public']['Tables']['about_us_sections']['Insert'];
-type AboutUsSectionUpdate = Database['public']['Tables']['about_us_sections']['Update'];
+// Updated AboutUsSection types to match the new 'blog.about_us_sections' table
+type AboutUsSection = Database['blog']['Tables']['about_us_sections']['Row'];
+type AboutUsSectionInsert = Database['blog']['Tables']['about_us_sections']['Insert'];
+type AboutUsSectionUpdate = Database['blog']['Tables']['about_us_sections']['Update'];
 
 export const useAboutUsSections = () => {
   const [sections, setSections] = useState<AboutUsSection[]>([]);
@@ -20,8 +21,10 @@ export const useAboutUsSections = () => {
       
       console.log('🔍 Fetching about us sections...');
       
+      // Updated table name and schema to 'blog.about_us_sections'
+      // Updated order by 'display_order'
       const { data, error } = await supabase
-        .from('about_us_sections')
+        .from('blog.about_us_sections')
         .select('*')
         .order('display_order', { ascending: true });
 
@@ -48,8 +51,9 @@ export const useAboutUsSections = () => {
     try {
       console.log('📝 Creating about us section:', sectionData);
 
+      // Updated table name and schema to 'blog.about_us_sections'
       const { data, error } = await supabase
-        .from('about_us_sections')
+        .from('blog.about_us_sections')
         .insert(sectionData)
         .select()
         .single();
@@ -81,9 +85,12 @@ export const useAboutUsSections = () => {
     try {
       console.log('📝 Updating about us section:', id, updates);
 
+      // Updated table name and schema to 'blog.about_us_sections'
+      // Updated eq column to 'id' (assuming 'id' is still PK)
+      // Updated timestamp column to 'modified_at'
       const { data, error } = await supabase
-        .from('about_us_sections')
-        .update(updates)
+        .from('blog.about_us_sections')
+        .update({ ...updates, modified_at: new Date().toISOString() })
         .eq('id', id)
         .select()
         .single();
@@ -119,8 +126,10 @@ export const useAboutUsSections = () => {
     try {
       console.log('🗑️ Deleting about us section:', id);
 
+      // Updated table name and schema to 'blog.about_us_sections'
+      // Updated eq column to 'id'
       const { error } = await supabase
-        .from('about_us_sections')
+        .from('blog.about_us_sections')
         .delete()
         .eq('id', id);
 
@@ -152,13 +161,16 @@ export const useAboutUsSections = () => {
       // Update display_order for each section
       const updates = reorderedSections.map((section, index) => ({
         id: section.id,
-        display_order: index + 1
+        display_order: index + 1,
+        modified_at: new Date().toISOString() // Update timestamp for consistency
       }));
 
       for (const update of updates) {
+        // Updated table name and schema to 'blog.about_us_sections'
+        // Updated eq column to 'id'
         await supabase
-          .from('about_us_sections')
-          .update({ display_order: update.display_order })
+          .from('blog.about_us_sections')
+          .update({ display_order: update.display_order, modified_at: update.modified_at })
           .eq('id', update.id);
       }
 
@@ -183,14 +195,15 @@ export const useAboutUsSections = () => {
     fetchSections();
 
     // Set up realtime subscription
+    // Updated schema and table name
     const channel = supabase
       .channel('about-us-sections-changes')
       .on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public',
-          table: 'about_us_sections'
+          schema: 'blog', // Updated schema
+          table: 'about_us_sections' // Updated table name
         },
         (payload) => {
           console.log('📡 Realtime update for about us sections:', payload);
@@ -198,13 +211,15 @@ export const useAboutUsSections = () => {
           if (payload.eventType === 'INSERT') {
             setSections(prev => [...prev, payload.new as AboutUsSection].sort((a, b) => a.display_order - b.display_order));
           } else if (payload.eventType === 'UPDATE') {
+            // Key is 'id' for about_us_sections table
             setSections(prev => 
               prev.map(section => 
-                section.id === payload.new.id ? payload.new as AboutUsSection : section
+                section.id === (payload.new as AboutUsSection).id ? payload.new as AboutUsSection : section
               ).sort((a, b) => a.display_order - b.display_order)
             );
           } else if (payload.eventType === 'DELETE') {
-            setSections(prev => prev.filter(section => section.id !== payload.old.id));
+            // Key is 'id' for about_us_sections table
+            setSections(prev => prev.filter(section => section.id !== (payload.old as AboutUsSection).id));
           }
         }
       )
@@ -241,8 +256,10 @@ export const usePublicAboutUsSections = () => {
         
         console.log('🔍 Fetching public about us sections...');
         
+        // Updated table name and schema to 'blog.about_us_sections'
+        // Updated order by 'display_order'
         const { data, error } = await supabase
-          .from('about_us_sections')
+          .from('blog.about_us_sections')
           .select('*')
           .eq('is_active', true)
           .order('display_order', { ascending: true });
@@ -264,14 +281,15 @@ export const usePublicAboutUsSections = () => {
     fetchPublicSections();
 
     // Set up realtime subscription for public sections
+    // Updated schema and table name
     const channel = supabase
       .channel('public-about-us-sections')
       .on(
         'postgres_changes',
         {
           event: '*',
-          schema: 'public',
-          table: 'about_us_sections',
+          schema: 'blog', // Updated schema
+          table: 'about_us_sections', // Updated table name
           filter: 'is_active=eq.true'
         },
         (payload) => {
