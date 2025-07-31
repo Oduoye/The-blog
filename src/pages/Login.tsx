@@ -11,7 +11,8 @@ import { LogIn, Mail, Eye, EyeOff, Shield } from "lucide-react";
 const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { signIn, user, loading: authLoading } = useAuth();
+  // useAuth now provides `profile` object matching `blog.user_profiles`
+  const { signIn, user, loading: authLoading, profile } = useAuth(); 
   const [credentials, setCredentials] = useState({
     email: "",
     password: ""
@@ -19,13 +20,26 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Redirect if already logged in or if user is suspended
   useEffect(() => {
-    if (user && !authLoading) {
-      console.log('User already logged in, redirecting to admin...');
-      navigate("/admin");
+    if (!authLoading) {
+      if (user) {
+        // If profile is loaded and user is suspended, redirect to a different page or show message
+        if (profile?.is_suspended) { // New: Check profile.is_suspended
+          toast({
+            title: "Account Suspended",
+            description: "Your account is suspended. Please contact an administrator.",
+            variant: "destructive",
+          });
+          // Do not navigate to /admin if suspended, perhaps to a generic suspended page or just stay here
+          // For now, if suspended, remain on login page to see toast.
+        } else {
+          console.log('User already logged in and not suspended, redirecting to admin...');
+          navigate("/admin");
+        }
+      }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, profile, navigate, toast]); // Added profile and toast to dependencies
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +60,8 @@ const Login = () => {
       
       await signIn(credentials.email.trim(), credentials.password);
       
-      // Navigation will happen via useEffect when user state updates
-      console.log('Login successful, user state will update and trigger navigation');
+      // Navigation will happen via useEffect when user/profile state updates
+      console.log('Login successful, user/profile state will update and trigger navigation');
       
     } catch (error: any) {
       console.error('Login failed:', error);
@@ -176,6 +190,7 @@ const Login = () => {
               <p>Auth Loading: {authLoading ? 'Yes' : 'No'}</p>
               <p>Form Loading: {loading ? 'Yes' : 'No'}</p>
               <p>User: {user ? user.email : 'None'}</p>
+              <p>Profile Suspended: {profile?.is_suspended ? 'Yes' : 'No'}</p> {/* New: Display profile suspended status */}
               <p>Email: {credentials.email}</p>
             </div>
           )}
