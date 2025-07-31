@@ -1,4 +1,5 @@
 // Debug utilities for troubleshooting frontend and backend issues
+import { supabase } from '@/integrations/supabase/client'; // Supabase client is updated
 
 export class DebugUtils {
   private static isDebugMode = process.env.NODE_ENV === 'development';
@@ -46,8 +47,6 @@ export class DebugUtils {
     try {
       this.log('DebugUtils', 'Testing Supabase connection...');
       
-      const { supabase } = await import('@/integrations/supabase/client');
-      
       // Test authentication
       const { data: { user }, error: authError } = await supabase.auth.getUser();
       this.log('DebugUtils', 'Auth test result:', { user: user?.email, error: authError });
@@ -62,34 +61,35 @@ export class DebugUtils {
         return { success: false, error: 'No authenticated user' };
       }
 
-      // Test database connection with a simple query
-      const { data: testData, error: dbError } = await supabase
-        .from('about_content')
-        .select('count')
+      // New: Test database connection with a simple query from the new 'blog' schema
+      // Test by selecting from 'blog.user_profiles'
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles') // Assumes default schema is 'blog' from client.ts
+        .select('user_id, username') // Select specific columns from new schema
         .limit(1);
 
-      this.log('DebugUtils', 'Database test result:', { data: testData, error: dbError });
+      this.log('DebugUtils', 'Profile table access test:', { data: profileData, error: profileError });
 
-      if (dbError) {
-        this.error('DebugUtils', 'Database connection failed:', dbError);
-        return { success: false, error: `Database error: ${dbError.message}` };
+      if (profileError) {
+        this.error('DebugUtils', 'Profile table access failed:', profileError);
+        return { success: false, error: `Profile access error: ${profileError.message}` };
       }
 
-      // Test RLS policies by trying to read about_content
-      const { data: aboutData, error: aboutError } = await supabase
-        .from('about_content')
-        .select('*')
+      // New: Test blog posts table access
+      const { data: postsData, error: postsError } = await supabase
+        .from('posts') // Assumes default schema is 'blog'
+        .select('post_id, title') // Select specific columns
         .limit(1);
 
-      this.log('DebugUtils', 'About content access test:', { data: aboutData, error: aboutError });
+      this.log('DebugUtils', 'Blog posts table access test:', { data: postsData, error: postsError });
 
-      if (aboutError) {
-        this.error('DebugUtils', 'RLS policy test failed:', aboutError);
-        return { success: false, error: `RLS error: ${aboutError.message}` };
+      if (postsError) {
+        this.error('DebugUtils', 'Blog posts table access failed:', postsError);
+        return { success: false, error: `Blog posts access error: ${postsError.message}` };
       }
 
       this.log('DebugUtils', 'All Supabase tests passed successfully');
-      return { success: true, user, data: aboutData };
+      return { success: true, user, profileData, postsData };
 
     } catch (error: any) {
       this.error('DebugUtils', 'Supabase connection test failed:', error);
