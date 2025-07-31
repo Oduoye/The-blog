@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus, Mail, User, Eye, EyeOff, Tag } from "lucide-react";
+import { UserPlus, Mail, User, Eye, EyeOff, Tag, Shield, Star } from "lucide-react"; // Added Shield, Star
 import { supabase } from "@/integrations/supabase/client";
 
 const categories = [
@@ -31,13 +31,27 @@ const Auth = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
+    username: "", // New: Added username field
     displayName: "",
-    specializedCategory: ""
+    specializedCategory: "",
+    // New: Fields for is_creator and is_admin, though usually set by admin or specific signup paths
+    isCreator: false, 
+    isAdmin: false 
   });
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+
+    if (!formData.username.trim()) { // New: Validate username
+      toast({
+        title: "Error",
+        description: "Please enter a username.",
+        variant: "destructive",
+      });
+      setLoading(false);
+      return;
+    }
 
     if (!formData.specializedCategory) {
       toast({
@@ -48,17 +62,22 @@ const Auth = () => {
       setLoading(false);
       return;
     }
+
     try {
       console.log('Creating account with Supabase...');
       
       // Sign up with Supabase Auth
+      // Pass username, display_name, specialized_category, is_creator, is_admin in metadata
       const { data, error } = await supabase.auth.signUp({
         email: formData.email.trim(),
         password: formData.password,
         options: {
           data: {
+            username: formData.username.trim(), // New: Pass username in metadata
             display_name: formData.displayName.trim(),
-            specialized_category: formData.specializedCategory
+            specialized_category: formData.specializedCategory,
+            is_creator: formData.isCreator, // New: Pass is_creator in metadata
+            is_admin: formData.isAdmin // New: Pass is_admin in metadata
           }
         }
       });
@@ -68,22 +87,9 @@ const Auth = () => {
       }
 
       if (data.user) {
-        // Create profile record
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert({
-            id: data.user.id,
-            email: formData.email.trim(),
-            display_name: formData.displayName.trim(),
-            is_admin: false,
-            specialized_category: formData.specializedCategory,
-            is_suspended: false
-          });
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          // Don't throw here as the user was created successfully
-        }
+        // The blog.user_profiles record is now automatically created by the handle_new_user trigger
+        // so no explicit insert into 'profiles' table is needed here.
+        // We only need to ensure the metadata passed to signUp is correct.
 
         toast({
           title: "Success",
@@ -94,8 +100,11 @@ const Auth = () => {
         setFormData({
           email: "",
           password: "",
+          username: "",
           displayName: "",
-          specializedCategory: ""
+          specializedCategory: "",
+          isCreator: false,
+          isAdmin: false
         });
       }
     } catch (error: any) {
@@ -125,6 +134,28 @@ const Auth = () => {
         <CardContent>
           <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="username">Username *</Label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                <Input
+                  id="username"
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
+                  placeholder="Choose a unique username"
+                  className="pl-10"
+                  required
+                  disabled={loading}
+                  minLength={3}
+                  maxLength={50}
+                />
+              </div>
+              <p className="text-xs text-gray-500">
+                Unique identifier, 3-50 characters.
+              </p>
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="displayName">Display Name</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -133,10 +164,10 @@ const Auth = () => {
                   type="text"
                   value={formData.displayName}
                   onChange={(e) => setFormData(prev => ({ ...prev, displayName: e.target.value }))}
-                  placeholder="Your display name"
+                  placeholder="Your public display name (optional)"
                   className="pl-10"
-                  required
                   disabled={loading}
+                  maxLength={100}
                 />
               </div>
             </div>
@@ -164,7 +195,7 @@ const Auth = () => {
                 </Select>
               </div>
               <p className="text-xs text-gray-500">
-                Choose the category you'll be creating content for. This cannot be changed later.
+                Choose the category you'll be creating content for.
               </p>
             </div>
             <div className="space-y-2">
@@ -215,6 +246,41 @@ const Auth = () => {
               </div>
               <p className="text-xs text-gray-500">Password must be at least 6 characters long</p>
             </div>
+
+            {/* New: Optional fields for Admin/Creator status for initial signup (use with caution) */}
+            <div className="space-y-2 border-t pt-4">
+              <p className="text-sm font-semibold text-gray-700 mb-2">Optional Roles (for specific signups)</p>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isCreator"
+                    checked={formData.isCreator}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isCreator: checked }))}
+                    disabled={loading || formData.isAdmin} // Cannot be creator if admin is true
+                  />
+                  <Label htmlFor="isCreator" className="flex items-center gap-2">
+                    <Star className="h-4 w-4 text-yellow-500" />
+                    Content Creator
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="isAdmin"
+                    checked={formData.isAdmin}
+                    onCheckedChange={(checked) => setFormData(prev => ({ ...prev, isAdmin: checked, isCreator: checked ? true : prev.isCreator }))} // If admin, also make creator
+                    disabled={loading}
+                  />
+                  <Label htmlFor="isAdmin" className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-blue-600" />
+                    Super Admin
+                  </Label>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                Note: Admin/Creator roles are typically assigned by an existing admin. These options are for specific controlled sign-ups.
+              </p>
+            </div>
+
 
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Creating Account..." : "Create Account"}
