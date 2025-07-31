@@ -3,15 +3,15 @@ import { Button } from "@/components/ui/button";
 import { Menu, X, LogOut, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useBlogPosts } from "@/hooks/useBlogPosts";
+import { useBlogPosts } from "@/hooks/useBlogPosts"; // useBlogPosts is already updated
 
 const BlogHeader = () => {
   const location = useLocation();
   const isAdminPath = location.pathname.startsWith('/admin');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const { signOut, user, profile } = useAuth();
-  const { posts } = useBlogPosts();
+  const { signOut, user, profile } = useAuth(); // profile now matches blog.user_profiles
+  const { posts } = useBlogPosts(); // posts from useBlogPosts are now from blog.posts
 
   const handleSignOut = async () => {
     await signOut();
@@ -81,7 +81,8 @@ const BlogHeader = () => {
                 <Link to="/admin" className="text-gray-700 hover:text-blue-600 transition-colors">
                   Dashboard
                 </Link>
-                {(profile?.is_admin || profile?.specialized_category) && (
+                {/* New: Check profile?.is_creator for 'New Post' button */}
+                {(profile?.is_admin || profile?.is_creator) && ( 
                   <Link to="/admin/create">
                     <Button size="sm">New Post</Button>
                   </Link>
@@ -182,7 +183,8 @@ const BlogHeader = () => {
                   >
                     Dashboard
                   </Link>
-                  {(profile?.is_admin || profile?.specialized_category) && (
+                  {/* New: Check profile?.is_creator for 'New Post' button */}
+                  {(profile?.is_admin || profile?.is_creator) && (
                     <Link 
                       to="/admin/create"
                       onClick={() => setMobileMenuOpen(false)}
