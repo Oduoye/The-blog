@@ -5,14 +5,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { useContactSettings } from "@/hooks/useContactSettings";
+import { useContactSettings } from "@/hooks/useContactSettings"; // useContactSettings is updated
 import { useForm, ValidationError } from '@formspree/react';
 import { Mail, Phone, MapPin, Globe } from "lucide-react";
 
 const ContactForm = () => {
-  const { toast } = useToast();
-  const { contactSettings, loading } = useContactSettings();
-  const [state, handleSubmit] = useForm("mldbqpgy");
+  // useContactSettings hook is already updated to new schema
+  const { contactSettings, loading } = useContactSettings(); 
+  const [state, handleSubmit] = useForm("mldbqpgy"); // Formspree form ID
   
   const [formData, setFormData] = useState({
     name: "",
@@ -47,7 +47,8 @@ const ContactForm = () => {
   // Handle Formspree success
   if (state.succeeded) {
     // Reset form on success
-    if (formData.name || formData.email || formData.message) {
+    // This condition prevents the toast from showing on initial render if Formspree state is persisted
+    if (formData.name || formData.email || formData.message) { 
       setFormData({ name: "", email: "", subject: "", message: "" });
       toast({
         title: "Success",
